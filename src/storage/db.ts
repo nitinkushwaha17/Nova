@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { StoredFile } from '../types';
+import { activeProfileId, dbNameFor } from './profiles';
 
 export interface PriceEntry {
   nav: number;
@@ -24,7 +25,7 @@ interface NovaDB extends DBSchema {
 let dbp: Promise<IDBPDatabase<NovaDB>> | null = null;
 
 export function db() {
-  dbp ??= openDB<NovaDB>('nova', 1, {
+  dbp ??= openDB<NovaDB>(dbNameFor(activeProfileId()), 1, {
     upgrade(d) {
       d.createObjectStore('files', { keyPath: 'name' });
       d.createObjectStore('sync');
@@ -54,8 +55,22 @@ export async function deleteFile(name: string) {
   await (await db()).delete('files', name);
 }
 
+const inflight = new Set<Promise<unknown>>();
+/** Resolves once every local write started so far has landed (used before switching profile) */
+export async function flushWrites() {
+  await Promise.allSettled([...inflight]);
+}
+
 /** Save data locally and mark it as needing upload */
-export async function writeLocal<T>(name: string, data: T): Promise<StoredFile<T>> {
+export function writeLocal<T>(name: string, data: T): Promise<StoredFile<T>> {
+  const p = writeLocalInner(name, data);
+  inflight.add(p);
+  const done = () => inflight.delete(p);
+  p.then(done, done);
+  return p;
+}
+
+async function writeLocalInner<T>(name: string, data: T): Promise<StoredFile<T>> {
   const prev = await getFile<T>(name);
   const file: StoredFile<T> = {
     name,

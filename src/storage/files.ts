@@ -1,4 +1,5 @@
 import type { FY } from '../types';
+import { activeProfileId, drivePrefixFor } from './profiles';
 
 /** Logical file names — each maps to one JSON file in Drive and one IndexedDB record */
 export const F = {
@@ -10,6 +11,7 @@ export const F = {
   planning: 'planning',
   networth: 'networth',
   cpi: 'cpi',
+  buckets: 'buckets',
 } as const;
 
 export type CoreFile = (typeof F)[keyof typeof F];
@@ -29,8 +31,10 @@ export const isTxFile = (name: string) => name.startsWith('transactions/');
 export const isTaxFile = (name: string) => name.startsWith('tax/');
 
 /** Drive file name for a logical name (appDataFolder is flat) */
-export const driveName = (name: string) => `${name.replace(/\//g, '__')}.json`;
-export const logicalName = (drive: string) => drive.replace(/\.json$/, '').replace(/__/g, '/');
+export const driveName = (name: string) => `${drivePrefixFor(activeProfileId())}${name.replace(/\//g, '__')}.json`;
 
-export const MANIFEST = 'manifest.json';
+/** Drive name of the active profile's manifest */
+export const manifestName = () => `${drivePrefixFor(activeProfileId())}manifest.json`;
+/** Shared list of profiles (not profile-specific) */
+export const PROFILES_FILE = 'profiles.json';
 export const SCHEMA_VERSION = 1;

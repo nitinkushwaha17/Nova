@@ -1,6 +1,7 @@
 import { AlertTriangle, Cloud, CloudOff, Database, Download, FileJson, HardDrive, LogOut, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { AccountModal } from '../components/AccountModal';
+import { ProfilesCard } from '../components/Profiles';
 import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Tabs, toast } from '../components/ui';
 import { convertLegacy, isLegacyBackup } from '../lib/parsers/legacy';
 import { allFiles } from '../storage/db';
@@ -391,7 +392,10 @@ export default function Settings() {
           <BackupCard />
           <PreferencesCard />
         </div>
-        <StorageCard />
+        <div className="space-y-5">
+          <ProfilesCard />
+          <StorageCard />
+        </div>
       </div>
     </>
   );

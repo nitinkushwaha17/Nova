@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import type { Manifest, StoredFile } from '../types';
 import { allFiles, getFile, getSyncMeta, putFile, setSyncMeta } from '../storage/db';
-import { CORE_FILES, driveName, MANIFEST, SCHEMA_VERSION } from '../storage/files';
+import { CORE_FILES, driveName, manifestName, PROFILES_FILE, SCHEMA_VERSION } from '../storage/files';
+import { drivePrefixFor, mergeProfiles, useProfiles, type Profile } from '../storage/profiles';
 import * as drive from './drive';
-import { getClientId, isConnected, NeedsAuthError, signIn, signOut } from './google';
+import { getClientId, hasValidToken, isConnected, NeedsAuthError, signIn, signOut } from './google';
 
 export type SyncStatus = 'unconfigured' | 'disconnected' | 'needs-auth' | 'idle' | 'syncing' | 'error' | 'offline';
 
@@ -59,7 +60,7 @@ async function ids(): Promise<Map<string, string>> {
 
 async function fetchManifest(): Promise<Manifest> {
   const map = await ids();
-  const id = map.get(MANIFEST);
+  const id = map.get(manifestName());
   if (!id) return { schemaVersion: SCHEMA_VERSION, updatedAt: new Date(0).toISOString(), files: {} };
   return drive.download<Manifest>(id);
 }
@@ -169,7 +170,7 @@ async function push(manifest: Manifest) {
   if (changed) {
     manifest.updatedAt = new Date().toISOString();
     manifest.schemaVersion = SCHEMA_VERSION;
-    await uploadJson(MANIFEST, manifest);
+    await uploadJson(manifestName(), manifest);
     const remoteFiles = Object.fromEntries(Object.entries(manifest.files).map(([k, v]) => [k, { rev: v.rev, updatedAt: v.updatedAt }]));
     set({ remoteFiles });
     await setSyncMeta({ remoteFiles });
@@ -179,6 +180,33 @@ async function push(manifest: Manifest) {
 
 let running: Promise<void> | null = null;
 let again = false;
+
+/** Mirror the profile list to Drive and delete Drive files of profiles removed on any device */
+async function syncProfiles() {
+  const map = await ids();
+  const id = map.get(PROFILES_FILE);
+  const remote = id ? ((await drive.download<{ profiles?: Profile[] }>(id)).profiles ?? []) : [];
+  const { merged, remoteChanged } = mergeProfiles(remote);
+  if (remoteChanged || !id) await uploadJson(PROFILES_FILE, { profiles: merged });
+  for (const p of merged) {
+    if (!p.deleted) continue;
+    const prefix = drivePrefixFor(p.id);
+    if (!prefix) continue;
+    for (const [name, fid] of [...map]) {
+      if (!name.startsWith(prefix)) continue;
+      await drive.remove(fid);
+      map.delete(name);
+    }
+  }
+}
+
+// Push local profile edits soon after they happen
+let lastProfiles = useProfiles.getState().all;
+useProfiles.subscribe((s) => {
+  if (s.all === lastProfiles) return;
+  lastProfiles = s.all;
+  schedulePush(1500);
+});
 
 export async function syncNow(): Promise<void> {
   if (!isConnected() || !getClientId()) return;
@@ -193,6 +221,8 @@ export async function syncNow(): Promise<void> {
         again = false;
         const manifest = await pull();
         await push(manifest);
+        await syncProfiles();
+        lastProfiles = useProfiles.getState().all;
       } while (again);
       const now = new Date().toISOString();
       await setSyncMeta({ lastSyncAt: now });
@@ -266,6 +296,7 @@ export async function initSync() {
   await refreshPending();
   if (!getClientId()) set({ status: 'unconfigured' });
   else if (!isConnected()) set({ status: 'disconnected' });
+  else if (hasValidToken()) void syncNow();
   else set({ status: 'needs-auth' });
   window.addEventListener('online', () => {
     if (useSync.getState().status === 'offline') void syncNow();

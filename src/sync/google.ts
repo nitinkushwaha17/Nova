@@ -72,7 +72,21 @@ function loadScript(): Promise<void> {
 }
 
 let client: TokenClient | null = null;
-let token: { value: string; expiresAt: number } | null = null;
+// Kept in sessionStorage (this tab only, ~1h lifetime) so switching profile — which reloads the app — doesn't force a new sign-in
+const SS_TOKEN = 'nova.token';
+let token: { value: string; expiresAt: number } | null = (() => {
+  try {
+    const t = JSON.parse(sessionStorage.getItem(SS_TOKEN) || 'null') as { value: string; expiresAt: number } | null;
+    return t && t.expiresAt > Date.now() ? t : null;
+  } catch {
+    return null;
+  }
+})();
+function setToken(t: typeof token) {
+  token = t;
+  if (t) sessionStorage.setItem(SS_TOKEN, JSON.stringify(t));
+  else sessionStorage.removeItem(SS_TOKEN);
+}
 let pending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null;
 
 async function getClient(): Promise<TokenClient> {
@@ -90,7 +104,7 @@ async function getClient(): Promise<TokenClient> {
           p?.reject(new Error(r.error_description || r.error || 'Sign-in failed'));
           return;
         }
-        token = { value: r.access_token, expiresAt: Date.now() + (r.expires_in - 60) * 1000 };
+        setToken({ value: r.access_token, expiresAt: Date.now() + (r.expires_in - 60) * 1000 });
         p?.resolve(r.access_token);
       },
       error_callback: (e) => {
@@ -138,11 +152,11 @@ export async function signIn(): Promise<string> {
 
 export function signOut() {
   if (token && window.google) window.google.accounts.oauth2.revoke(token.value);
-  token = null;
+  setToken(null);
   localStorage.removeItem(LS_CONNECTED);
   localStorage.removeItem(LS_EMAIL);
 }
 
 export function invalidateToken() {
-  token = null;
+  setToken(null);
 }
