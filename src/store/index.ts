@@ -182,6 +182,25 @@ export const useStore = create<State>((set, get) => {
       });
       setPrivacyMode(get().settings.privacy);
       await get().ensureFYs([currentFY()]);
+      // FYs that were loaded as empty before Drive was reachable: fetch them once the manifest lists them
+      useSync.subscribe((s, prev) => {
+        if (s.remoteFiles === prev.remoteFiles) return;
+        void (async () => {
+          const local = new Set(await fileNames());
+          for (const name of Object.keys(s.remoteFiles)) {
+            if (local.has(name)) continue;
+            const fy = fyFromFile(name);
+            if (!fy) continue;
+            if (isTxFile(name) && get().txByFY[fy]) {
+              const f = await fetchRemoteFile<Transaction[]>(name);
+              if (f) set({ txByFY: { ...get().txByFY, [fy]: f.data }, localTxFYs: [...new Set([...get().localTxFYs, fy])].sort() });
+            } else if (isTaxFile(name) && get().taxByFY[fy]) {
+              const f = await fetchRemoteFile<TaxYear>(name);
+              if (f) set({ taxByFY: { ...get().taxByFY, [fy]: { ...emptyTaxYear(fy), ...f.data } }, localTaxFYs: [...new Set([...get().localTaxFYs, fy])].sort() });
+            }
+          }
+        })().catch(() => undefined);
+      });
       await initSync();
       set({ ready: true });
       void get().refreshNavs();
