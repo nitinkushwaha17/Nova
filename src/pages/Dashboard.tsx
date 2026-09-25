@@ -28,6 +28,7 @@ export default function Dashboard() {
   const snapshots = useStore((s) => s.networth.snapshots);
   const assets = useStore((s) => s.portfolio.assets);
   const planning = useStore((s) => s.planning);
+  const hasWealth = useStore((s) => s.portfolio.assets.length > 0 || s.liabilities.liabilities.length > 0);
   const txByFY = useStore((s) => s.txByFY);
   const taxByFY = useStore((s) => s.taxByFY);
   const ensureFYs = useStore((s) => s.ensureFYs);
@@ -131,7 +132,7 @@ export default function Dashboard() {
         }
       />
 
-      {onboarding && <Onboarding hasAccount={!!accounts.length} hasTxns={!!Object.keys(summaries).length} connected={connected} />}
+      {onboarding && <Onboarding hasAccount={!!accounts.length} hasTxns={!!Object.keys(summaries).length} connected={connected} hasWealth={hasWealth} />}
 
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -321,12 +322,12 @@ export default function Dashboard() {
   );
 }
 
-function Onboarding({ hasAccount, hasTxns, connected }: { hasAccount: boolean; hasTxns: boolean; connected: boolean }) {
+function Onboarding({ hasAccount, hasTxns, connected, hasWealth }: { hasAccount: boolean; hasTxns: boolean; connected: boolean; hasWealth: boolean }) {
   const steps: { done: boolean; title: string; body: string; to: string; icon: ReactNode; cta: string }[] = [
     { done: hasAccount, title: 'Add an account', body: 'Savings, salary, credit card or wallet.', to: '/accounts', icon: <Wallet className="size-4" />, cta: 'Add account' },
     { done: hasTxns, title: 'Import a statement', body: 'CSV or Excel export from your bank.', to: '/import', icon: <Upload className="size-4" />, cta: 'Import' },
     { done: connected, title: 'Connect Google Drive', body: 'Private sync & backup in your own Drive.', to: '/settings', icon: <Cloud className="size-4" />, cta: 'Connect' },
-    { done: false, title: 'Add assets & loans', body: 'FDs, funds, stocks, PPF, loans…', to: '/assets', icon: <Plus className="size-4" />, cta: 'Add' },
+    { done: hasWealth, title: 'Add assets & loans', body: 'FDs, funds, stocks, PPF, loans…', to: '/assets', icon: <Plus className="size-4" />, cta: 'Add' },
   ];
   return (
     <div className="card relative mb-5 overflow-hidden p-5">
