@@ -94,6 +94,19 @@ export function assetMetrics(
   };
 }
 
+/** Portfolio-level XIRR combining every asset's contributions and current values */
+export function portfolioXirr(assets: Asset[], navs: Record<string, { nav: number; date: string }> = {}, asOf: ISODate = todayISO()): number | null {
+  const flows: { date: ISODate; amount: number }[] = [];
+  let value = 0;
+  for (const a of assets) {
+    if (isDeposit(a)) flows.push(...depositFlows(a.deposit!, a.type === 'rd', asOf).map((f) => ({ date: f.date, amount: -f.amount })));
+    else flows.push(...a.flows.filter((f) => f.date <= asOf).map((f) => ({ date: f.date, amount: -f.amount })));
+    value += assetMetrics(a, navs, asOf).value;
+  }
+  if (!flows.length || value <= 0) return null;
+  return xirr([...flows, { date: asOf, amount: value }]);
+}
+
 export function liabilityOutstanding(l: Liability, asOf: ISODate = todayISO()): number {
   if (l.closed) return 0;
   const manual = latestValuation(l.valuations, asOf);

@@ -197,7 +197,7 @@ export function Progress({ value, color, className }: { value: number; color?: s
 
 export function Money({ value, short, sign, className, colored }: { value: number | null | undefined; short?: boolean; sign?: boolean; className?: string; colored?: boolean }) {
   const cls = colored && value ? (value > 0 ? 'text-pos' : 'text-neg') : undefined;
-  return <span className={cx('tabular', cls, className)}>{short ? moneyShort(value) : money(value, { sign })}</span>;
+  return <span className={cx('tabular', cls, className)}>{short ? (sign && value && value > 0 ? '+' : '') + moneyShort(value) : money(value, { sign })}</span>;
 }
 
 export function Stat({
