@@ -23,7 +23,7 @@ import {
   Wallet,
   AlertTriangle,
   CreditCard,
-  Luggage,
+  Layers,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -48,7 +48,7 @@ const NAV: { group: string; items: { to: string; label: string; icon: ReactNode 
       { to: '/import', label: 'Import', icon: <Upload /> },
       { to: '/accounts', label: 'Accounts', icon: <Wallet /> },
       { to: '/categories', label: 'Categories & rules', icon: <Tags /> },
-      { to: '/buckets', label: 'Buckets & tags', icon: <Luggage /> },
+      { to: '/collections', label: 'Collections & tags', icon: <Layers /> },
     ],
   },
   {

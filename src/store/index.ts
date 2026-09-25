@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import type {
   Account,
-  Bucket,
-  BucketsDoc,
+  Collection,
+  CollectionsDoc,
   Category,
   CpiDoc,
   FY,
@@ -20,7 +20,7 @@ import type {
   Transaction,
 } from '../types';
 import {
-  DEFAULT_BUCKETS,
+  DEFAULT_COLLECTIONS,
   DEFAULT_CPI,
   DEFAULT_LIABILITIES,
   DEFAULT_META,
@@ -49,7 +49,7 @@ interface Docs {
   planning: PlanningDoc;
   networth: NetWorthDoc;
   cpi: CpiDoc;
-  buckets: BucketsDoc;
+  collections: CollectionsDoc;
 }
 
 const DEFAULTS: Docs = {
@@ -61,7 +61,7 @@ const DEFAULTS: Docs = {
   planning: DEFAULT_PLANNING,
   networth: DEFAULT_NETWORTH,
   cpi: DEFAULT_CPI,
-  buckets: DEFAULT_BUCKETS,
+  collections: DEFAULT_COLLECTIONS,
 };
 
 export interface ImportResult {
@@ -101,14 +101,14 @@ interface State extends Docs {
   saveCategories(cats: Category[]): void;
   saveRules(rules: Rule[]): void;
 
-  saveBucket(b: Bucket): void;
-  /** Removes the bucket and un-assigns its transactions */
-  deleteBucket(id: string): Promise<void>;
+  saveCollection(b: Collection): void;
+  /** Removes the collection and un-assigns its transactions */
+  deleteCollection(id: string): Promise<void>;
   /** Rename (or delete, when 	o is empty) a tag across every transaction */
   renameTag(from: string, to: string): Promise<number>;
-  /** FYs whose transactions include a bucket / tag, according to summaries */
-  fysWith(kind: 'bucket' | 'tag', key: string): FY[];
-  /** Rebuild summaries written before buckets/tags were tracked (loads those FYs once) */
+  /** FYs whose transactions include a collection / tag, according to summaries */
+  fysWith(kind: 'collection' | 'tag', key: string): FY[];
+  /** Rebuild summaries written before collections/tags were tracked (loads those FYs once) */
   upgradeSummaries(): Promise<void>;
 
   refreshNavs(force?: boolean): Promise<void>;
@@ -414,18 +414,18 @@ export const useStore = create<State>((set, get) => {
       get().update('meta', (m) => ({ ...m, rules }));
     },
 
-    saveBucket(b) {
-      get().update('buckets', (d) => ({ buckets: d.buckets.some((x) => x.id === b.id) ? d.buckets.map((x) => (x.id === b.id ? b : x)) : [...d.buckets, b] }));
+    saveCollection(b) {
+      get().update('collections', (d) => ({ collections: d.collections.some((x) => x.id === b.id) ? d.collections.map((x) => (x.id === b.id ? b : x)) : [...d.collections, b] }));
     },
 
-    async deleteBucket(id) {
-      const fys = get().fysWith('bucket', id);
+    async deleteCollection(id) {
+      const fys = get().fysWith('collection', id);
       await get().ensureFYs(fys);
       for (const fy of fys) {
         const list = get().txByFY[fy] ?? [];
-        if (list.some((t) => t.bucketId === id)) saveFY(fy, list.map((t) => (t.bucketId === id ? { ...t, bucketId: null } : t)));
+        if (list.some((t) => t.collectionId === id)) saveFY(fy, list.map((t) => (t.collectionId === id ? { ...t, collectionId: null } : t)));
       }
-      get().update('buckets', (d) => ({ buckets: d.buckets.filter((b) => b.id !== id) }));
+      get().update('collections', (d) => ({ collections: d.collections.filter((b) => b.id !== id) }));
     },
 
     async renameTag(from, to) {
@@ -450,14 +450,14 @@ export const useStore = create<State>((set, get) => {
 
     fysWith(kind, key) {
       return Object.entries(get().summaries)
-        .filter(([, s]) => (kind === 'bucket' ? s.byBucket : s.byTag)?.[key])
+        .filter(([, s]) => (kind === 'collection' ? s.byCollection : s.byTag)?.[key])
         .map(([fy]) => fy)
         .sort();
     },
 
     async upgradeSummaries() {
       const stale = Object.entries(get().summaries)
-        .filter(([, s]) => !s.byTag || !s.byBucket)
+        .filter(([, s]) => !s.byTag || !s.byCollection)
         .map(([fy]) => fy);
       if (!stale.length) return;
       await get().ensureFYs(stale);
@@ -533,13 +533,13 @@ export function useCatMap() {
   return useMemo(() => new Map(cats.map((c) => [c.id, c])), [cats]);
 }
 
-/** All-time totals per bucket / tag, merged across FY summaries (no transactions loaded) */
-export function useGroupTotals(kind: 'bucket' | 'tag') {
+/** All-time totals per collection / tag, merged across FY summaries (no transactions loaded) */
+export function useGroupTotals(kind: 'collection' | 'tag') {
   const summaries = useStore((s) => s.summaries);
   return useMemo(() => {
     const lists = new Map<string, (GroupTotals | undefined)[]>();
     for (const s of Object.values(summaries)) {
-      for (const [k, g] of Object.entries((kind === 'bucket' ? s.byBucket : s.byTag) ?? {})) {
+      for (const [k, g] of Object.entries((kind === 'collection' ? s.byCollection : s.byTag) ?? {})) {
         const arr = lists.get(k);
         if (arr) arr.push(g);
         else lists.set(k, [g]);

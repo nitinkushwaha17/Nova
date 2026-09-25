@@ -183,7 +183,7 @@ export function addToMonth(m: MonthSummary, t: Transaction, cat?: Category) {
 export function summarize(txns: Transaction[], catMap: Map<string, Category>): FYSummary {
   const months: Record<string, MonthSummary> = {};
   const lastBalances: FYSummary['lastBalances'] = {};
-  const byBucket: Record<string, GroupTotals> = {};
+  const byCollection: Record<string, GroupTotals> = {};
   const byTag: Record<string, GroupTotals> = {};
   for (const t of txns) {
     const ym = t.date.slice(0, 7);
@@ -194,12 +194,12 @@ export function summarize(txns: Transaction[], catMap: Map<string, Category>): F
       const cur = lastBalances[t.accountId];
       if (!cur || t.date >= cur.date) lastBalances[t.accountId] = { date: t.date, balance: t.balance };
     }
-    if ((t.bucketId || t.tags?.length) && classify(t, cat) !== 'transfer') {
-      if (t.bucketId) addToGroup((byBucket[t.bucketId] ??= emptyGroup(t.date)), t);
+    if ((t.collectionId || t.tags?.length) && classify(t, cat) !== 'transfer') {
+      if (t.collectionId) addToGroup((byCollection[t.collectionId] ??= emptyGroup(t.date)), t);
       for (const tag of new Set(t.tags)) addToGroup((byTag[tag] ??= emptyGroup(t.date)), t);
     }
   }
-  return { months, count: txns.length, lastBalances, byBucket, byTag, updatedAt: new Date().toISOString() };
+  return { months, count: txns.length, lastBalances, byCollection, byTag, updatedAt: new Date().toISOString() };
 }
 
 const emptyGroup = (date: string): GroupTotals => ({ spent: 0, received: 0, count: 0, first: date, last: date });

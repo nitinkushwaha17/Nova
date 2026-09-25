@@ -11,7 +11,7 @@ export const F = {
   planning: 'planning',
   networth: 'networth',
   cpi: 'cpi',
-  buckets: 'buckets',
+  collections: 'collections',
 } as const;
 
 export type CoreFile = (typeof F)[keyof typeof F];

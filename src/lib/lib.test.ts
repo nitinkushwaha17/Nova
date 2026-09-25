@@ -207,7 +207,7 @@ describe('merchantOf noise', () => {
 
 import { mergeGroups, normalizeTag, summarize } from './transactions';
 
-describe('buckets & tags', () => {
+describe('collections & tags', () => {
   const catMap = new Map(DEFAULT_CATEGORIES.map((c) => [c.id, c]));
   const t = (id: string, date: string, amount: number, extra: Record<string, unknown> = {}) => ({ id, accountId: 'a', date, description: id, amount, importId: 'x', ...extra });
 
@@ -217,21 +217,21 @@ describe('buckets & tags', () => {
     expect(normalizeTag('   ')).toBe('');
   });
 
-  it('summarises per bucket and tag, excluding transfers', () => {
+  it('summarises per collection and tag, excluding transfers', () => {
     const s = summarize(
       [
-        t('1', '2025-05-01', -1000, { bucketId: 'b1', tags: ['food', 'goa'] }),
-        t('2', '2025-05-03', -500, { bucketId: 'b1', tags: ['goa'] }),
-        t('3', '2025-05-04', 300, { bucketId: 'b1' }),
-        t('4', '2025-05-05', -2000, { bucketId: 'b1', isTransfer: true }),
+        t('1', '2025-05-01', -1000, { collectionId: 'b1', tags: ['food', 'goa'] }),
+        t('2', '2025-05-03', -500, { collectionId: 'b1', tags: ['goa'] }),
+        t('3', '2025-05-04', 300, { collectionId: 'b1' }),
+        t('4', '2025-05-05', -2000, { collectionId: 'b1', isTransfer: true }),
         t('5', '2025-06-01', -50, { tags: ['food'] }),
       ],
       catMap,
     );
-    expect(s.byBucket?.b1).toEqual({ spent: 1500, received: 300, count: 3, first: '2025-05-01', last: '2025-05-04' });
+    expect(s.byCollection?.b1).toEqual({ spent: 1500, received: 300, count: 3, first: '2025-05-01', last: '2025-05-04' });
     expect(s.byTag?.goa.spent).toBe(1500);
     expect(s.byTag?.food).toMatchObject({ spent: 1050, count: 2, last: '2025-06-01' });
-    const m = mergeGroups([s.byBucket?.b1, { spent: 10, received: 0, count: 1, first: '2024-01-01', last: '2026-01-01' }, undefined]);
+    const m = mergeGroups([s.byCollection?.b1, { spent: 10, received: 0, count: 1, first: '2024-01-01', last: '2026-01-01' }, undefined]);
     expect(m).toEqual({ spent: 1510, received: 300, count: 4, first: '2024-01-01', last: '2026-01-01' });
   });
 });

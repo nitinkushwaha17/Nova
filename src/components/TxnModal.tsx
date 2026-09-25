@@ -5,13 +5,13 @@ import { uid } from '../lib/format';
 import { classify, merchantOf } from '../lib/transactions';
 import { useCatMap, useStore } from '../store';
 import type { Rule, Transaction } from '../types';
-import { BucketSelect } from './BucketSelect';
+import { CollectionSelect } from './CollectionSelect';
 import { CategorySelect } from './CategorySelect';
 import { newRule, RuleModal } from './RuleModal';
 import { TagInput } from './TagInput';
 import { Badge, Button, Field, Input, Modal, NumberInput, Select, Tabs, toast } from './ui';
 
-/** defaults pre-fills a new transaction, e.g. { bucketId } when adding from a bucket */
+/** defaults pre-fills a new transaction, e.g. { collectionId } when adding from a collection */
 export function TxnModal({ open, onClose, initial, defaults }: { open: boolean; onClose: () => void; initial?: Transaction; defaults?: Partial<Transaction> }) {
   const accounts = useStore((s) => s.meta.accounts);
   const updateTransaction = useStore((s) => s.updateTransaction);
@@ -44,7 +44,7 @@ export function TxnModal({ open, onClose, initial, defaults }: { open: boolean; 
       description: t.description.trim(),
       amount: dir === 'out' ? -amount : amount,
       tags,
-      bucketId: t.bucketId || null,
+      collectionId: t.collectionId || null,
     };
     if (!final.description || !final.accountId || !amount) return;
     if (isNew) {
@@ -155,8 +155,8 @@ export function TxnModal({ open, onClose, initial, defaults }: { open: boolean; 
           <Field label="Notes" className="sm:col-span-2">
             <Input value={t.notes ?? ''} onChange={(e) => set({ notes: e.target.value })} placeholder="optional" />
           </Field>
-          <Field label="Bucket" hint="Group with a trip, event or project">
-            <BucketSelect value={t.bucketId} onChange={(bucketId) => set({ bucketId })} />
+          <Field label="Collection" hint="Group with a trip, event or project">
+            <CollectionSelect value={t.collectionId} onChange={(collectionId) => set({ collectionId })} />
           </Field>
           <Field label="Tags" hint="Enter or comma to add">
             <TagInput value={tags} onChange={setTags} />

@@ -55,7 +55,7 @@ export interface Transaction {
   /** Free-form labels (normalised: lowercase, dashes), many per transaction */
   tags?: string[];
   /** The event / purpose this belongs to (a trip, a wedding…) — at most one */
-  bucketId?: ID | null;
+  collectionId?: ID | null;
   /** Manually marked as transfer (true) / not transfer (false); undefined = auto */
   isTransfer?: boolean;
   /** Auto-detected transfer (self-transfer pair / sweep) */
@@ -110,14 +110,14 @@ export interface FYSummary {
   count: number;
   /** Latest known balance per account within this FY */
   lastBalances: Record<ID, { date: ISODate; balance: number }>;
-  /** Totals per bucket id (absent in summaries written before buckets existed) */
-  byBucket?: Record<ID, GroupTotals>;
+  /** Totals per collection id (absent in summaries written before collections existed) */
+  byCollection?: Record<ID, GroupTotals>;
   /** Totals per tag */
   byTag?: Record<string, GroupTotals>;
   updatedAt: string;
 }
 
-/** Money out / in for a bucket or tag. Self-transfers are excluded. */
+/** Money out / in for a collection or tag. Self-transfers are excluded. */
 export interface GroupTotals {
   spent: number;
   received: number;
@@ -126,14 +126,14 @@ export interface GroupTotals {
   last: ISODate;
 }
 
-// ─── Buckets ────────────────────────────────────────────────────────────────
+// ─── Collections ────────────────────────────────────────────────────────────────
 
-export type BucketKind = 'trip' | 'event' | 'project' | 'home' | 'other';
+export type CollectionKind = 'trip' | 'event' | 'project' | 'home' | 'other';
 
-export interface Bucket {
+export interface Collection {
   id: ID;
   name: string;
-  kind: BucketKind;
+  kind: CollectionKind;
   emoji?: string;
   color: string;
   startDate?: ISODate;
@@ -144,8 +144,8 @@ export interface Bucket {
   createdAt: string;
 }
 
-export interface BucketsDoc {
-  buckets: Bucket[];
+export interface CollectionsDoc {
+  collections: Collection[];
 }
 
 export type SummariesDoc = Record<FY, FYSummary>;

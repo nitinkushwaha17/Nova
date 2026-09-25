@@ -4,44 +4,44 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { TxnModal } from '../components/TxnModal';
 import { axisMoney, Badge, Button, Card, ChartTooltip, cx, Dot, Empty, Field, IconButton, Input, Modal, Money, NumberInput, PageHeader, Progress, Select, Spinner, Stat, Tabs, Toggle, toast } from '../components/ui';
-import { BUCKET_KINDS, bucketIcon, bucketStatus, newBucket, STATUS_LABEL } from '../lib/buckets';
+import { COLLECTION_KINDS, collectionIcon, collectionStatus, newCollection, STATUS_LABEL } from '../lib/collections';
 import { addDays, daysBetween, formatDate, fysBetween, monthLabel, todayISO } from '../lib/dates';
 import { PALETTE } from '../lib/defaults';
 import { classify, normalizeTag } from '../lib/transactions';
 import { useCatMap, useGroupTotals, useStore } from '../store';
-import type { Bucket, BucketKind, GroupTotals, Transaction } from '../types';
+import type { Collection, CollectionKind, GroupTotals, Transaction } from '../types';
 
 const net = (g?: GroupTotals) => (g ? g.spent - g.received : 0);
 
-function dateSpan(b: Bucket, g?: GroupTotals) {
+function dateSpan(b: Collection, g?: GroupTotals) {
   const start = b.startDate ?? g?.first;
   const end = b.endDate ?? g?.last;
   if (!start || !end) return null;
   return { start, end, days: Math.max(1, daysBetween(start, end) + 1) };
 }
 
-function BucketModal({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Bucket }) {
-  const count = useStore((s) => s.buckets.buckets.length);
-  const saveBucket = useStore((s) => s.saveBucket);
-  const [b, setB] = useState<Bucket>(() => initial ?? newBucket({}, count));
+function CollectionModal({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Collection }) {
+  const count = useStore((s) => s.collections.collections.length);
+  const saveCollection = useStore((s) => s.saveCollection);
+  const [b, setB] = useState<Collection>(() => initial ?? newCollection({}, count));
   const [prev, setPrev] = useState({ open, initial });
   if (prev.open !== open || prev.initial !== initial) {
     setPrev({ open, initial });
-    if (open) setB(initial ?? newBucket({}, count));
+    if (open) setB(initial ?? newCollection({}, count));
   }
-  const set = (p: Partial<Bucket>) => setB((x) => ({ ...x, ...p }));
+  const set = (p: Partial<Collection>) => setB((x) => ({ ...x, ...p }));
   const valid = b.name.trim() && !(b.startDate && b.endDate && b.endDate < b.startDate);
   const save = () => {
     if (!valid) return;
-    saveBucket({ ...b, name: b.name.trim(), notes: b.notes?.trim() || undefined, emoji: b.emoji?.trim() || undefined });
-    toast(initial ? 'Bucket updated' : 'Bucket created');
+    saveCollection({ ...b, name: b.name.trim(), notes: b.notes?.trim() || undefined, emoji: b.emoji?.trim() || undefined });
+    toast(initial ? 'Collection updated' : 'Collection created');
     onClose();
   };
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={initial ? 'Edit bucket' : 'New bucket'}
+      title={initial ? 'Edit collection' : 'New collection'}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -56,13 +56,13 @@ function BucketModal({ open, onClose, initial }: { open: boolean; onClose: () =>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" className="sm:col-span-2">
           <div className="flex gap-2">
-            <Input value={b.emoji ?? ''} onChange={(e) => set({ emoji: [...e.target.value].slice(-2).join('') })} placeholder={BUCKET_KINDS[b.kind].emoji} className="!w-14 text-center" title="Emoji" />
+            <Input value={b.emoji ?? ''} onChange={(e) => set({ emoji: [...e.target.value].slice(-2).join('') })} placeholder={COLLECTION_KINDS[b.kind].emoji} className="!w-14 text-center" title="Emoji" />
             <Input value={b.name} onChange={(e) => set({ name: e.target.value })} placeholder="Goa trip, Wedding, Home renovation…" autoFocus onKeyDown={(e) => e.key === 'Enter' && save()} />
           </div>
         </Field>
         <Field label="Kind">
-          <Select value={b.kind} onChange={(e) => set({ kind: e.target.value as BucketKind })}>
-            {Object.entries(BUCKET_KINDS).map(([k, v]) => (
+          <Select value={b.kind} onChange={(e) => set({ kind: e.target.value as CollectionKind })}>
+            {Object.entries(COLLECTION_KINDS).map(([k, v]) => (
               <option key={k} value={k}>
                 {v.emoji} {v.label}
               </option>
@@ -98,15 +98,15 @@ function BucketModal({ open, onClose, initial }: { open: boolean; onClose: () =>
   );
 }
 
-function BucketCard({ b, g }: { b: Bucket; g?: GroupTotals }) {
-  const status = bucketStatus(b, todayISO());
+function CollectionCard({ b, g }: { b: Collection; g?: GroupTotals }) {
+  const status = collectionStatus(b, todayISO());
   const cost = net(g);
   const span = dateSpan(b, g);
   return (
-    <Link to={`/buckets/${b.id}`} className="card group block p-4 transition hover:-translate-y-0.5 hover:border-accent/40">
+    <Link to={`/collections/${b.id}`} className="card group block p-4 transition hover:-translate-y-0.5 hover:border-accent/40">
       <div className="flex items-start gap-3">
         <div className="grid size-11 shrink-0 place-items-center rounded-xl text-xl" style={{ background: `${b.color}22` }}>
-          {bucketIcon(b)}
+          {collectionIcon(b)}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -114,7 +114,7 @@ function BucketCard({ b, g }: { b: Bucket; g?: GroupTotals }) {
             {b.archived ? <Badge>Archived</Badge> : <Badge color={STATUS_LABEL[status].color}>{STATUS_LABEL[status].label}</Badge>}
           </div>
           <p className="truncate text-xs text-muted">
-            {BUCKET_KINDS[b.kind].label}
+            {COLLECTION_KINDS[b.kind].label}
             {span && ` · ${formatDate(span.start)} – ${formatDate(span.end)}`}
           </p>
         </div>
@@ -222,41 +222,41 @@ function TagsCard() {
   );
 }
 
-function BucketList() {
-  const buckets = useStore((s) => s.buckets.buckets);
-  const totals = useGroupTotals('bucket');
+function CollectionList() {
+  const collections = useStore((s) => s.collections.collections);
+  const totals = useGroupTotals('collection');
   const [modal, setModal] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const today = todayISO();
   const order = { active: 0, upcoming: 1, open: 2, done: 3 };
-  const visible = buckets
+  const visible = collections
     .filter((b) => showArchived || !b.archived)
-    .sort((a, b) => order[bucketStatus(a, today)] - order[bucketStatus(b, today)] || (b.startDate ?? b.createdAt).localeCompare(a.startDate ?? a.createdAt));
-  const archived = buckets.filter((b) => b.archived).length;
-  const totalCost = buckets.reduce((s, b) => s + net(totals.get(b.id)), 0);
+    .sort((a, b) => order[collectionStatus(a, today)] - order[collectionStatus(b, today)] || (b.startDate ?? b.createdAt).localeCompare(a.startDate ?? a.createdAt));
+  const archived = collections.filter((b) => b.archived).length;
+  const totalCost = collections.reduce((s, b) => s + net(totals.get(b.id)), 0);
 
   return (
     <>
       <PageHeader
-        title="Buckets & tags"
+        title="Collections & tags"
         subtitle="Group spending across categories, like a trip, a wedding or a renovation"
         actions={
           <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setModal(true)}>
-            New bucket
+            New collection
           </Button>
         }
       />
-      {!buckets.length ? (
+      {!collections.length ? (
         <Card className="mb-4">
-          <Empty icon={<CalendarRange />} title="No buckets yet" action={<Button variant="primary" onClick={() => setModal(true)}>Create your first bucket</Button>}>
-            A bucket collects every expense for one thing, whatever its category. A Goa trip might hold flights (Travel), hotels (Travel), dinners (Food) and souvenirs (Shopping). Each transaction can sit in one bucket and carry any number of tags.
+          <Empty icon={<CalendarRange />} title="No collections yet" action={<Button variant="primary" onClick={() => setModal(true)}>Create your first collection</Button>}>
+            A collection collects every expense for one thing, whatever its category. A Goa trip might hold flights (Travel), hotels (Travel), dinners (Food) and souvenirs (Shopping). Each transaction can sit in one collection and carry any number of tags.
           </Empty>
         </Card>
       ) : (
         <>
           <div className="mb-3 flex items-center gap-4 text-sm text-muted">
             <span>
-              {buckets.length - archived} buckets · <Money value={totalCost} className="font-medium text-fg" /> tracked
+              {collections.length - archived} {collections.length - archived === 1 ? 'collection' : 'collections'} · <Money value={totalCost} className="font-medium text-fg" /> tracked
             </span>
             {archived > 0 && (
               <button className="ml-auto flex items-center gap-1.5 text-xs hover:text-fg" onClick={() => setShowArchived((v) => !v)}>
@@ -266,24 +266,24 @@ function BucketList() {
           </div>
           <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((b) => (
-              <BucketCard key={b.id} b={b} g={totals.get(b.id)} />
+              <CollectionCard key={b.id} b={b} g={totals.get(b.id)} />
             ))}
           </div>
         </>
       )}
       <TagsCard />
-      <BucketModal open={modal} onClose={() => setModal(false)} />
+      <CollectionModal open={modal} onClose={() => setModal(false)} />
     </>
   );
 }
 
-function FindTransactions({ open, onClose, bucket }: { open: boolean; onClose: () => void; bucket: Bucket }) {
+function FindTransactions({ open, onClose, collection }: { open: boolean; onClose: () => void; collection: Collection }) {
   const txByFY = useStore((s) => s.txByFY);
   const ensureFYs = useStore((s) => s.ensureFYs);
   const updateTransactions = useStore((s) => s.updateTransactions);
   const catMap = useCatMap();
-  const [start, setStart] = useState(bucket.startDate ?? addDays(todayISO(), -30));
-  const [end, setEnd] = useState(bucket.endDate ?? todayISO());
+  const [start, setStart] = useState(collection.startDate ?? addDays(todayISO(), -30));
+  const [end, setEnd] = useState(collection.endDate ?? todayISO());
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const fys = useMemo(() => (start && end && start <= end ? fysBetween(start, end) : []), [start, end]);
@@ -295,14 +295,14 @@ function FindTransactions({ open, onClose, bucket }: { open: boolean; onClose: (
     const needle = q.trim().toLowerCase();
     return fys
       .flatMap((f) => txByFY[f] ?? [])
-      .filter((t) => t.date >= start && t.date <= end && !t.bucketId && classify(t, t.category ? catMap.get(t.category) : undefined) !== 'transfer')
+      .filter((t) => t.date >= start && t.date <= end && !t.collectionId && classify(t, t.category ? catMap.get(t.category) : undefined) !== 'transfer')
       .filter((t) => !needle || `${t.description} ${t.notes ?? ''}`.toLowerCase().includes(needle))
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [fys, txByFY, start, end, q, catMap]);
 
   const add = () => {
-    updateTransactions([...picked], { bucketId: bucket.id });
-    toast(`Added ${picked.size} to ${bucket.name}`);
+    updateTransactions([...picked], { collectionId: collection.id });
+    toast(`Added ${picked.size} to ${collection.name}`);
     setPicked(new Set());
     onClose();
   };
@@ -319,7 +319,7 @@ function FindTransactions({ open, onClose, bucket }: { open: boolean; onClose: (
       open={open}
       onClose={onClose}
       wide
-      title={`Find transactions for ${bucket.name}`}
+      title={`Find transactions for ${collection.name}`}
       footer={
         <>
           <span className="mr-auto text-sm text-muted">
@@ -329,7 +329,7 @@ function FindTransactions({ open, onClose, bucket }: { open: boolean; onClose: (
             Cancel
           </Button>
           <Button variant="primary" onClick={add} disabled={!picked.size}>
-            Add to bucket
+            Add to collection
           </Button>
         </>
       }
@@ -345,7 +345,7 @@ function FindTransactions({ open, onClose, bucket }: { open: boolean; onClose: (
           Select all spends
         </Button>
       </div>
-      <p className="mb-2 text-xs text-faint">Showing transactions not already in a bucket (self-transfers hidden).</p>
+      <p className="mb-2 text-xs text-faint">Showing transactions not already in a collection (self-transfers hidden).</p>
       <div className="max-h-[50vh] overflow-y-auto rounded-xl border border-line">
         {loading ? (
           <div className="grid h-32 place-items-center">
@@ -376,14 +376,14 @@ function FindTransactions({ open, onClose, bucket }: { open: boolean; onClose: (
   );
 }
 
-function BucketDetail({ id }: { id: string }) {
+function CollectionDetail({ id }: { id: string }) {
   const navigate = useNavigate();
-  const bucket = useStore((s) => s.buckets.buckets.find((b) => b.id === id));
+  const collection = useStore((s) => s.collections.collections.find((b) => b.id === id));
   const summaries = useStore((s) => s.summaries);
   const txByFY = useStore((s) => s.txByFY);
   const ensureFYs = useStore((s) => s.ensureFYs);
   const fysWith = useStore((s) => s.fysWith);
-  const deleteBucket = useStore((s) => s.deleteBucket);
+  const deleteCollection = useStore((s) => s.deleteCollection);
   const updateTransactions = useStore((s) => s.updateTransactions);
   const accounts = useStore((s) => s.meta.accounts);
   const catMap = useCatMap();
@@ -392,8 +392,8 @@ function BucketDetail({ id }: { id: string }) {
   const [txnModal, setTxnModal] = useState<{ open: boolean; t?: Transaction }>({ open: false });
   const [breakdown, setBreakdown] = useState<'category' | 'tag'>('category');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- summaries changes when this bucket's FYs change
-  const fys = useMemo(() => fysWith('bucket', id), [id, summaries, fysWith]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- summaries changes when this collection's FYs change
+  const fys = useMemo(() => fysWith('collection', id), [id, summaries, fysWith]);
   useEffect(() => {
     void ensureFYs(fys);
   }, [fys, ensureFYs]);
@@ -402,7 +402,7 @@ function BucketDetail({ id }: { id: string }) {
     () =>
       fys
         .flatMap((f) => txByFY[f] ?? [])
-        .filter((t) => t.bucketId === id)
+        .filter((t) => t.collectionId === id)
         .sort((a, b) => b.date.localeCompare(a.date)),
     [fys, txByFY, id],
   );
@@ -428,8 +428,8 @@ function BucketDetail({ id }: { id: string }) {
   const chart = useMemo(() => {
     const days = [...stats.byDay.keys()].sort();
     if (!days.length) return [];
-    const first = bucket?.startDate && bucket.startDate < days[0] ? bucket.startDate : days[0];
-    const last = bucket?.endDate && bucket.endDate > days[days.length - 1] ? bucket.endDate : days[days.length - 1];
+    const first = collection?.startDate && collection.startDate < days[0] ? collection.startDate : days[0];
+    const last = collection?.endDate && collection.endDate > days[days.length - 1] ? collection.endDate : days[days.length - 1];
     const span = daysBetween(first, last);
     if (span > 62) {
       const byMonth = new Map<string, number>();
@@ -439,42 +439,42 @@ function BucketDetail({ id }: { id: string }) {
     const out: { label: string; spent: number }[] = [];
     for (let d = first; d <= last; d = addDays(d, 1)) out.push({ label: formatDate(d).replace(/ \d{4}$/, ''), spent: Math.round(stats.byDay.get(d) ?? 0) });
     return out;
-  }, [stats.byDay, bucket?.startDate, bucket?.endDate]);
+  }, [stats.byDay, collection?.startDate, collection?.endDate]);
 
-  if (!bucket)
+  if (!collection)
     return (
-      <Empty icon={<CalendarRange />} title="Bucket not found" action={<Link to="/buckets"><Button>Back to buckets</Button></Link>}>
+      <Empty icon={<CalendarRange />} title="Collection not found" action={<Link to="/collections"><Button>Back to collections</Button></Link>}>
         It may have been deleted on another device.
       </Empty>
     );
 
   const g = fys.length ? { first: txns[txns.length - 1]?.date, last: txns[0]?.date } : undefined;
-  const span = dateSpan(bucket, g as GroupTotals | undefined);
-  const status = bucketStatus(bucket, todayISO());
+  const span = dateSpan(collection, g as GroupTotals | undefined);
+  const status = collectionStatus(collection, todayISO());
   const accName = (aid: string) => accounts.find((a) => a.id === aid)?.name ?? '—';
   const rows = (breakdown === 'category' ? [...stats.byCat.entries()] : [...stats.byTag.entries()]).filter(([, v]) => Math.abs(v) >= 1).sort((a, b) => b[1] - a[1]);
   const maxRow = Math.max(1, ...rows.map(([, v]) => Math.abs(v)));
 
   return (
     <>
-      <Link to="/buckets" className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
-        <ArrowLeft className="size-4" /> All buckets
+      <Link to="/collections" className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+        <ArrowLeft className="size-4" /> All collections
       </Link>
       <PageHeader
         title={
           <span className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-xl text-xl" style={{ background: `${bucket.color}22` }}>
-              {bucketIcon(bucket)}
+            <span className="grid size-10 place-items-center rounded-xl text-xl" style={{ background: `${collection.color}22` }}>
+              {collectionIcon(collection)}
             </span>
-            {bucket.name}
-            {bucket.archived ? <Badge>Archived</Badge> : <Badge color={STATUS_LABEL[status].color}>{STATUS_LABEL[status].label}</Badge>}
+            {collection.name}
+            {collection.archived ? <Badge>Archived</Badge> : <Badge color={STATUS_LABEL[status].color}>{STATUS_LABEL[status].label}</Badge>}
           </span>
         }
         subtitle={
           <>
-            {BUCKET_KINDS[bucket.kind].label}
+            {COLLECTION_KINDS[collection.kind].label}
             {span && ` · ${formatDate(span.start)} – ${formatDate(span.end)} (${span.days} days)`}
-            {bucket.notes && ` · ${bucket.notes}`}
+            {collection.notes && ` · ${collection.notes}`}
           </>
         }
         actions={
@@ -486,12 +486,12 @@ function BucketDetail({ id }: { id: string }) {
               Edit
             </Button>
             <IconButton
-              title="Delete bucket"
+              title="Delete collection"
               onClick={async () => {
-                if (!window.confirm(`Delete "${bucket.name}"? Its ${txns.length} transactions stay, just without a bucket.`)) return;
-                await deleteBucket(bucket.id);
-                toast('Bucket deleted');
-                navigate('/buckets');
+                if (!window.confirm(`Delete "${collection.name}"? Its ${txns.length} transactions stay, just without a collection.`)) return;
+                await deleteCollection(collection.id);
+                toast('Collection deleted');
+                navigate('/collections');
               }}
             >
               <Trash2 className="size-4" />
@@ -507,14 +507,14 @@ function BucketDetail({ id }: { id: string }) {
         <Stat label="Net cost" value={<Money value={stats.net} />} sub={`${txns.length} transactions`} tone="accent" />
         <Stat label="Spent" value={<Money value={stats.spent} />} tone="neg" />
         <Stat label="Paid back / refunds" value={<Money value={stats.received} />} sub="reduces net cost" tone="pos" />
-        {bucket.budget ? (
+        {collection.budget ? (
           <Stat
             label="Budget"
-            value={<Money value={bucket.budget - stats.net} />}
+            value={<Money value={collection.budget - stats.net} />}
             sub={
               <>
-                <Progress value={stats.net / bucket.budget} color={stats.net > bucket.budget ? '#fb7185' : bucket.color} className="my-1" />
-                {stats.net > bucket.budget ? 'over budget' : 'left'} of <Money value={bucket.budget} short />
+                <Progress value={stats.net / collection.budget} color={stats.net > collection.budget ? '#fb7185' : collection.color} className="my-1" />
+                {stats.net > collection.budget ? 'over budget' : 'left'} of <Money value={collection.budget} short />
               </>
             }
           />
@@ -531,7 +531,7 @@ function BucketDetail({ id }: { id: string }) {
         <Card>
           <Empty
             icon={<CalendarRange />}
-            title="Nothing in this bucket yet"
+            title="Nothing in this collection yet"
             action={
               <div className="flex gap-2">
                 <Button variant="primary" onClick={() => setFindOpen(true)}>
@@ -543,7 +543,7 @@ function BucketDetail({ id }: { id: string }) {
               </div>
             }
           >
-            Pick imported transactions from the bucket's dates, add them from the Transactions page (select, then "Move to bucket"), or add a cash expense directly.
+            Pick imported transactions from the collection's dates, add them from the Transactions page (select, then "Move to collection"), or add a cash expense directly.
           </Empty>
         </Card>
       ) : (
@@ -557,7 +557,7 @@ function BucketDetail({ id }: { id: string }) {
                     <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={12} />
                     <YAxis tickFormatter={axisMoney} tickLine={false} axisLine={false} width={56} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="spent" name="Net spent" fill={bucket.color} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    <Bar dataKey="spent" name="Net spent" fill={collection.color} radius={[4, 4, 0, 0]} maxBarSize={28} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -579,7 +579,7 @@ function BucketDetail({ id }: { id: string }) {
               <ul className="space-y-2.5">
                 {rows.map(([k, v]) => {
                   const cat = breakdown === 'category' ? catMap.get(k) : undefined;
-                  const color = breakdown === 'category' ? (cat?.color ?? '#94a3b8') : bucket.color;
+                  const color = breakdown === 'category' ? (cat?.color ?? '#94a3b8') : collection.color;
                   return (
                     <li key={k}>
                       <div className="mb-1 flex items-center gap-2 text-sm">
@@ -629,7 +629,7 @@ function BucketDetail({ id }: { id: string }) {
                         <Money value={t.amount} sign className={t.amount > 0 ? 'text-pos' : ''} />
                       </td>
                       <td className="w-10 pr-2">
-                        <IconButton title="Remove from bucket" className="opacity-0 group-hover:opacity-100" onClick={() => updateTransactions([t.id], { bucketId: null })}>
+                        <IconButton title="Remove from collection" className="opacity-0 group-hover:opacity-100" onClick={() => updateTransactions([t.id], { collectionId: null })}>
                           <X className="size-3.5" />
                         </IconButton>
                       </td>
@@ -642,23 +642,23 @@ function BucketDetail({ id }: { id: string }) {
         </>
       )}
 
-      <BucketModal open={editOpen} onClose={() => setEditOpen(false)} initial={bucket} />
-      <FindTransactions open={findOpen} onClose={() => setFindOpen(false)} bucket={bucket} />
+      <CollectionModal open={editOpen} onClose={() => setEditOpen(false)} initial={collection} />
+      <FindTransactions open={findOpen} onClose={() => setFindOpen(false)} collection={collection} />
       <TxnModal
         open={txnModal.open}
         onClose={() => setTxnModal({ open: false })}
         initial={txnModal.t}
-        defaults={{ bucketId: bucket.id, date: bucket.startDate && bucket.endDate && todayISO() > bucket.endDate ? bucket.startDate : todayISO() }}
+        defaults={{ collectionId: collection.id, date: collection.startDate && collection.endDate && todayISO() > collection.endDate ? collection.startDate : todayISO() }}
       />
     </>
   );
 }
 
-export default function Buckets() {
+export default function Collections() {
   const { id } = useParams();
   const upgradeSummaries = useStore((s) => s.upgradeSummaries);
   useEffect(() => {
     void upgradeSummaries();
   }, [upgradeSummaries]);
-  return id ? <BucketDetail key={id} id={id} /> : <BucketList />;
+  return id ? <CollectionDetail key={id} id={id} /> : <CollectionList />;
 }

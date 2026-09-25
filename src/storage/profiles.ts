@@ -88,7 +88,7 @@ export async function deleteProfileLocal(id: string) {
 /** Switching reloads the app so every in-memory cache starts clean for the new profile */
 export function switchProfile(id: string) {
   localStorage.setItem(LS_ACTIVE, id);
-  // Detail routes (e.g. /buckets/:id) point at the old profile's data
+  // Detail routes (e.g. /collections/:id) point at the old profile's data
   const path = location.pathname.split('/').slice(0, 2).join('/') || '/';
   if (path === location.pathname) location.reload();
   else location.assign(path);

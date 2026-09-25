@@ -1,13 +1,13 @@
 import { ArrowLeftRight, Download, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { BucketSelect } from '../components/BucketSelect';
+import { CollectionSelect } from '../components/CollectionSelect';
 import { CategorySelect } from '../components/CategorySelect';
 import { PeriodPicker } from '../components/PeriodPicker';
 import { TxnModal } from '../components/TxnModal';
 import { Badge, Button, Card, cx, Dot, Empty, Input, Money, PageHeader, Select, Spinner, toast } from '../components/ui';
 import { formatDate } from '../lib/dates';
-import { bucketIcon } from '../lib/buckets';
+import { collectionIcon } from '../lib/collections';
 import { classify, normalizeTag, type TxKind } from '../lib/transactions';
 import { usePeriod, usePeriodTxns } from '../hooks';
 import { useCatMap, useGroupTotals, useKnownFYs, useStore } from '../store';
@@ -76,16 +76,16 @@ export default function Transactions() {
     else if (v) p.set('category', v);
     setParams(p, { replace: true });
   };
-  const bucket = params.get('bucket') ?? '';
+  const collection = params.get('collection') ?? '';
   const tag = params.get('tag') ?? '';
-  const setParam = (key: 'bucket' | 'tag', v: string) => {
+  const setParam = (key: 'collection' | 'tag', v: string) => {
     const p = new URLSearchParams(params);
     if (v) p.set(key, v);
     else p.delete(key);
     setParams(p, { replace: true });
   };
-  const buckets = useStore((s) => s.buckets.buckets);
-  const bucketMap = useMemo(() => new Map(buckets.map((b) => [b.id, b])), [buckets]);
+  const collections = useStore((s) => s.collections.collections);
+  const collectionMap = useMemo(() => new Map(collections.map((b) => [b.id, b])), [collections]);
   const knownTags = useGroupTotals('tag');
   const [bulkTag, setBulkTag] = useState('');
   const [kind, setKind] = useState<TxKind | ''>('');
@@ -107,7 +107,7 @@ export default function Transactions() {
       if (account && t.accountId !== account) return false;
       if (category === '__none' && t.category) return false;
       if (category && category !== '__none' && t.category !== category) return false;
-      if (bucket === '__none' ? t.bucketId : bucket && t.bucketId !== bucket) return false;
+      if (collection === '__none' ? t.collectionId : collection && t.collectionId !== collection) return false;
       if (tag && !t.tags?.includes(tag)) return false;
       if (kind && classify(t, t.category ? catMap.get(t.category) : undefined) !== kind) return false;
       if (needle) {
@@ -129,7 +129,7 @@ export default function Transactions() {
       }
     });
     return list;
-  }, [txns, q, account, category, bucket, tag, kind, sort, catMap]);
+  }, [txns, q, account, category, collection, tag, kind, sort, catMap]);
 
   const totals = useMemo(() => {
     let inc = 0,
@@ -227,13 +227,13 @@ export default function Transactions() {
               </option>
             ))}
           </Select>
-          {buckets.length > 0 && (
-            <Select value={bucket} onChange={(e) => setParam('bucket', e.target.value)} className="!w-auto">
-              <option value="">All buckets</option>
-              <option value="__none">Not in a bucket</option>
-              {buckets.map((b) => (
+          {collections.length > 0 && (
+            <Select value={collection} onChange={(e) => setParam('collection', e.target.value)} className="!w-auto">
+              <option value="">All collections</option>
+              <option value="__none">Not in a collection</option>
+              {collections.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {bucketIcon(b)} {b.name}
+                  {collectionIcon(b)} {b.name}
                 </option>
               ))}
             </Select>
@@ -301,20 +301,20 @@ export default function Transactions() {
             Not transfer
           </Button>
           <div className="w-44">
-            <BucketSelect
-              emptyLabel="Move to bucket…"
+            <CollectionSelect
+              emptyLabel="Move to collection…"
               className="!h-8 text-xs"
               onChange={(id) => {
                 if (!id) return;
-                updateTransactions(ids, { bucketId: id });
-                toast(`Added ${ids.length} to ${bucketMap.get(id)?.name ?? 'bucket'}`);
+                updateTransactions(ids, { collectionId: id });
+                toast(`Added ${ids.length} to ${collectionMap.get(id)?.name ?? 'collection'}`);
                 setSelected(new Set());
               }}
             />
           </div>
-          {filtered.some((t) => selected.has(t.id) && t.bucketId) && (
-            <Button size="sm" onClick={() => (updateTransactions(ids, { bucketId: null }), setSelected(new Set()))}>
-              Remove from bucket
+          {filtered.some((t) => selected.has(t.id) && t.collectionId) && (
+            <Button size="sm" onClick={() => (updateTransactions(ids, { collectionId: null }), setSelected(new Set()))}>
+              Remove from collection
             </Button>
           )}
           <form
@@ -402,10 +402,10 @@ export default function Transactions() {
                         <div className="flex items-center gap-1.5 truncate text-[11px] text-faint">
                           {accName(t.accountId)}
                           {(k === 'transfer' || k === 'refund' || k === 'investment') && <Badge color={KIND_COLOR[k]}>{KIND_LABEL[k]}</Badge>}
-                          {t.bucketId && bucketMap.get(t.bucketId) && (
-                            <Link to={`/buckets/${t.bucketId}`}>
-                              <Badge color={bucketMap.get(t.bucketId)!.color}>
-                                {bucketIcon(bucketMap.get(t.bucketId)!)} {bucketMap.get(t.bucketId)!.name}
+                          {t.collectionId && collectionMap.get(t.collectionId) && (
+                            <Link to={`/collections/${t.collectionId}`}>
+                              <Badge color={collectionMap.get(t.collectionId)!.color}>
+                                {collectionIcon(collectionMap.get(t.collectionId)!)} {collectionMap.get(t.collectionId)!.name}
                               </Badge>
                             </Link>
                           )}
@@ -438,7 +438,7 @@ export default function Transactions() {
           </div>
         )}
       </Card>
-      <TxnModal open={modal} onClose={() => setModal(false)} initial={edit} defaults={bucket && bucket !== '__none' ? { bucketId: bucket } : undefined} />
+      <TxnModal open={modal} onClose={() => setModal(false)} initial={edit} defaults={collection && collection !== '__none' ? { collectionId: collection } : undefined} />
     </>
   );
 }

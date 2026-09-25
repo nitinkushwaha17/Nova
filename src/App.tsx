@@ -16,7 +16,7 @@ const Taxes = lazy(() => import('./pages/Taxes'));
 const Planning = lazy(() => import('./pages/Planning'));
 const Inflation = lazy(() => import('./pages/Inflation'));
 const Calculator = lazy(() => import('./pages/Calculator'));
-const Buckets = lazy(() => import('./pages/Buckets'));
+const Collections = lazy(() => import('./pages/Collections'));
 const Settings = lazy(() => import('./pages/Settings'));
 
 const pages = [
@@ -25,8 +25,8 @@ const pages = [
   ['/import', Import],
   ['/accounts', Accounts],
   ['/categories', Categories],
-  ['/buckets', Buckets],
-  ['/buckets/:id', Buckets],
+  ['/collections', Collections],
+  ['/collections/:id', Collections],
   ['/analytics', Analytics],
   ['/assets', Assets],
   ['/liabilities', Liabilities],
