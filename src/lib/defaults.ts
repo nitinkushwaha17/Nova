@@ -91,7 +91,7 @@ export const DEFAULT_RULES: Rule[] = [
   r('mf', '\\b(ZERODHA|GROWW|KUVERA|COIN|BSE STAR|NSE CLEARING|MUTUAL FUND|SIP|ICCL|INDIAN CLEARING)\\b', 'investment', 'Mutual Funds'),
   r('ppf', '\\bPPF\\b', 'investment', 'PPF'),
   r('nps', '\\bNPS\\b', 'investment', 'NPS'),
-  r('lic', '\\b(LIC OF INDIA|LIFE INSURANCE CORP)\\b', 'insurance', 'Life Insurance'),
+  r('lic', '\\b(LIC|LIFE INSURANCE CORP)\\b', 'insurance', 'Life Insurance'),
   r('health-ins', '\\b(STAR HEALTH|NIVA BUPA|CARE HEALTH|HDFC ERGO|ICICI LOMBARD)\\b', 'insurance', 'Health Insurance'),
   r('tax', '\\b(CBDT|INCOME TAX|TIN ?NSDL|ADVANCE TAX|SELF ASSESSMENT TAX)\\b', 'taxes', 'Income Tax'),
   r('salary', '\\b(SALARY|SAL CREDIT|PAYROLL)\\b', 'income', 'Salary', 'credit'),

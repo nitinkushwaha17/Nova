@@ -166,3 +166,41 @@ describe('default rules', () => {
     expect(findRule(DEFAULT_RULES, t('DESCRIPTION WITH NOTHING'))).toBeUndefined();
   });
 });
+
+describe('analytics', () => {
+  it('aggregates, nets refunds and excludes transfers', async () => {
+    const { analyze, proportionalDirectTax } = await import('./analytics');
+    const { DEFAULT_CATEGORIES } = await import('./defaults');
+    const { emptyTaxYear } = await import('./tax');
+    const cm = new Map(DEFAULT_CATEGORIES.map((c) => [c.id, c]));
+    const t = (amount: number, category: string | null, date = '2025-04-10', extra = {}) => ({ id: Math.random().toString(), accountId: 'a', date, description: 'X', amount, category, ...extra });
+    const a = analyze(
+      [
+        t(100000, 'income'),
+        t(-2000, 'food'),
+        t(500, 'food'),
+        t(-10000, 'investment'),
+        t(-5000, null, '2025-05-02', { isTransfer: true }),
+        t(-300, null, '2025-05-03'),
+      ],
+      cm,
+    );
+    expect(a.income).toBe(100000);
+    expect(a.expense).toBe(1800);
+    expect(a.investment).toBe(10000);
+    expect(a.byCategory[0]).toMatchObject({ id: 'food', amount: 1500 });
+    expect(a.byMonth).toHaveLength(2);
+    expect(a.savingsRate).toBeCloseTo(0.982);
+
+    const tax = { ...emptyTaxYear('2025-26'), payments: [{ id: 'p', date: '2025-06-01', kind: 'tds' as const, amount: 36500 }] };
+    expect(proportionalDirectTax({ preset: 'fy', fy: '2025-26' }, { '2025-26': tax })).toBeCloseTo(36500);
+    expect(proportionalDirectTax({ preset: 'month', month: '2025-04' }, { '2025-26': tax })).toBeCloseTo(3000);
+  });
+});
+
+describe('merchantOf noise', () => {
+  it('skips short noise prefixes', async () => {
+    const { merchantOf } = await import('./transactions');
+    expect(merchantOf('ACH D- ZERODHA BROKING SIP')).toMatch(/Zerodha/);
+  });
+});

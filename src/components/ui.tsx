@@ -2,6 +2,7 @@ import { clsx } from 'clsx';
 import { Loader2, X } from 'lucide-react';
 import { useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { create } from 'zustand';
 import { money, moneyShort, pct } from '../lib/format';
 
@@ -23,7 +24,7 @@ export function Card({ className, children, title, action, pad = true }: { class
   );
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
@@ -206,6 +207,7 @@ export function Stat({
   icon,
   tone,
   className,
+  to,
 }: {
   label: ReactNode;
   value: ReactNode;
@@ -213,16 +215,25 @@ export function Stat({
   icon?: ReactNode;
   tone?: 'pos' | 'neg' | 'accent';
   className?: string;
+  to?: string;
 }) {
-  return (
-    <div className={cx('card animate-in p-4', className)}>
+  const cls = cx('card animate-in block p-4', to && 'transition hover:border-accent/50', className);
+  const body = (
+    <>
       <div className="flex items-center justify-between text-xs font-medium text-muted">
         {label}
         {icon && <span className={cx('grid size-7 place-items-center rounded-lg bg-surface-2', tone === 'pos' ? 'text-pos' : tone === 'neg' ? 'text-neg' : 'text-accent')}>{icon}</span>}
       </div>
       <div className="mt-2 text-xl font-semibold tracking-tight tabular">{value}</div>
       {sub && <div className="mt-1 text-xs text-muted">{sub}</div>}
-    </div>
+    </>
+  );
+  return to ? (
+    <Link to={to} className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls}>{body}</div>
   );
 }
 

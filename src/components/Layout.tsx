@@ -27,6 +27,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useStore } from '../store';
+import { useAutoSnapshot } from '../hooks';
 import { reauthorize, syncNow, useSync } from '../sync/engine';
 import { cx, IconButton, Spinner, toast } from './ui';
 
@@ -132,6 +133,7 @@ export function Layout() {
   const ready = useStore((s) => s.ready);
   const [open, setOpen] = useState(false);
   const loc = useLocation();
+  useAutoSnapshot();
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');

@@ -47,6 +47,7 @@ export function merchantOf(description: string): string {
     .toUpperCase()
     .split(/[/\-*|:@]+/)
     .map((p) => p.replace(/\d+/g, ' ').replace(/[^A-Z&. ]/g, ' ').replace(/\s+/g, ' ').trim())
+    .map((p) => p.split(' ').filter((w) => !NOISE.has(w)).join(' '))
     .filter((p) => p.length >= 3 && !NOISE.has(p) && !/^(MR|MRS|MS)\.?$/.test(p));
   const name = parts[0] ?? description.slice(0, 24).toUpperCase();
   return name
