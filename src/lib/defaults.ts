@@ -1,4 +1,5 @@
 import type {
+  BucketsDoc,
   Category,
   CpiDoc,
   LiabilitiesDoc,
@@ -108,6 +109,7 @@ export const DEFAULT_LIABILITIES: LiabilitiesDoc = { liabilities: [] };
 export const DEFAULT_NETWORTH: NetWorthDoc = { snapshots: [] };
 export const DEFAULT_PLANNING: PlanningDoc = { budgets: [], goals: [], insurance: [], emergencyMonths: 6, emergencyAssetIds: [] };
 export const DEFAULT_SUMMARIES: SummariesDoc = {};
+export const DEFAULT_BUCKETS: BucketsDoc = { buckets: [] };
 
 export const PALETTE = [
   '#818cf8', '#22d3ee', '#34d399', '#fbbf24', '#fb7185', '#c084fc', '#f472b6', '#a3e635', '#38bdf8', '#fdba74', '#94a3b8', '#2dd4bf',

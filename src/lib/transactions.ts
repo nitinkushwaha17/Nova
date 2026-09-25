@@ -1,4 +1,4 @@
-import type { Category, FYSummary, MonthSummary, Rule, Transaction } from '../types';
+import type { Category, FYSummary, GroupTotals, MonthSummary, Rule, Transaction } from '../types';
 import { daysBetween, fyOf, parseISO } from './dates';
 
 export type TxKind = 'income' | 'expense' | 'refund' | 'investment' | 'transfer';
@@ -183,16 +183,61 @@ export function addToMonth(m: MonthSummary, t: Transaction, cat?: Category) {
 export function summarize(txns: Transaction[], catMap: Map<string, Category>): FYSummary {
   const months: Record<string, MonthSummary> = {};
   const lastBalances: FYSummary['lastBalances'] = {};
+  const byBucket: Record<string, GroupTotals> = {};
+  const byTag: Record<string, GroupTotals> = {};
   for (const t of txns) {
     const ym = t.date.slice(0, 7);
     const m = (months[ym] ??= emptyMonth());
-    addToMonth(m, t, t.category ? catMap.get(t.category) : undefined);
+    const cat = t.category ? catMap.get(t.category) : undefined;
+    addToMonth(m, t, cat);
     if (t.balance != null) {
       const cur = lastBalances[t.accountId];
       if (!cur || t.date >= cur.date) lastBalances[t.accountId] = { date: t.date, balance: t.balance };
     }
+    if ((t.bucketId || t.tags?.length) && classify(t, cat) !== 'transfer') {
+      if (t.bucketId) addToGroup((byBucket[t.bucketId] ??= emptyGroup(t.date)), t);
+      for (const tag of new Set(t.tags)) addToGroup((byTag[tag] ??= emptyGroup(t.date)), t);
+    }
   }
-  return { months, count: txns.length, lastBalances, updatedAt: new Date().toISOString() };
+  return { months, count: txns.length, lastBalances, byBucket, byTag, updatedAt: new Date().toISOString() };
+}
+
+const emptyGroup = (date: string): GroupTotals => ({ spent: 0, received: 0, count: 0, first: date, last: date });
+
+function addToGroup(g: GroupTotals, t: Transaction) {
+  if (t.amount < 0) g.spent -= t.amount;
+  else g.received += t.amount;
+  g.count++;
+  if (t.date < g.first) g.first = t.date;
+  if (t.date > g.last) g.last = t.date;
+}
+
+export function mergeGroups(list: (GroupTotals | undefined)[]): GroupTotals | null {
+  let out: GroupTotals | null = null;
+  for (const g of list) {
+    if (!g) continue;
+    if (!out) out = { ...g };
+    else {
+      out.spent += g.spent;
+      out.received += g.received;
+      out.count += g.count;
+      if (g.first < out.first) out.first = g.first;
+      if (g.last > out.last) out.last = g.last;
+    }
+  }
+  return out;
+}
+
+/** "#Goa Trip " → "goa-trip" */
+export function normalizeTag(s: string): string {
+  return s
+    .trim()
+    .replace(/^#+/, '')
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')
+    .replace(/[^\p{L}\p{N}-]/gu, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 export function mergeMonths(list: MonthSummary[]): MonthSummary {

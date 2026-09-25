@@ -2,9 +2,12 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import type {
   Account,
+  Bucket,
+  BucketsDoc,
   Category,
   CpiDoc,
   FY,
+  GroupTotals,
   LiabilitiesDoc,
   MetaDoc,
   NetWorthDoc,
@@ -17,6 +20,7 @@ import type {
   Transaction,
 } from '../types';
 import {
+  DEFAULT_BUCKETS,
   DEFAULT_CPI,
   DEFAULT_LIABILITIES,
   DEFAULT_META,
@@ -28,7 +32,7 @@ import {
 } from '../lib/defaults';
 import { currentFY, fyOf } from '../lib/dates';
 import { setPrivacyMode } from '../lib/format';
-import { applyRules, dedupe, detectTransferPairs, groupByFY, sortTxns, summarize } from '../lib/transactions';
+import { applyRules, dedupe, detectTransferPairs, groupByFY, mergeGroups, sortTxns, summarize } from '../lib/transactions';
 import { emptyTaxYear } from '../lib/tax';
 import { navsFor } from '../lib/mf';
 import { computeNetWorth, snapshotFrom, upsertSnapshot } from '../lib/portfolio';
@@ -45,6 +49,7 @@ interface Docs {
   planning: PlanningDoc;
   networth: NetWorthDoc;
   cpi: CpiDoc;
+  buckets: BucketsDoc;
 }
 
 const DEFAULTS: Docs = {
@@ -56,6 +61,7 @@ const DEFAULTS: Docs = {
   planning: DEFAULT_PLANNING,
   networth: DEFAULT_NETWORTH,
   cpi: DEFAULT_CPI,
+  buckets: DEFAULT_BUCKETS,
 };
 
 export interface ImportResult {
@@ -94,6 +100,16 @@ interface State extends Docs {
   deleteAccount(id: string): Promise<void>;
   saveCategories(cats: Category[]): void;
   saveRules(rules: Rule[]): void;
+
+  saveBucket(b: Bucket): void;
+  /** Removes the bucket and un-assigns its transactions */
+  deleteBucket(id: string): Promise<void>;
+  /** Rename (or delete, when 	o is empty) a tag across every transaction */
+  renameTag(from: string, to: string): Promise<number>;
+  /** FYs whose transactions include a bucket / tag, according to summaries */
+  fysWith(kind: 'bucket' | 'tag', key: string): FY[];
+  /** Rebuild summaries written before buckets/tags were tracked (loads those FYs once) */
+  upgradeSummaries(): Promise<void>;
 
   refreshNavs(force?: boolean): Promise<void>;
   takeSnapshot(): void;
@@ -398,6 +414,56 @@ export const useStore = create<State>((set, get) => {
       get().update('meta', (m) => ({ ...m, rules }));
     },
 
+    saveBucket(b) {
+      get().update('buckets', (d) => ({ buckets: d.buckets.some((x) => x.id === b.id) ? d.buckets.map((x) => (x.id === b.id ? b : x)) : [...d.buckets, b] }));
+    },
+
+    async deleteBucket(id) {
+      const fys = get().fysWith('bucket', id);
+      await get().ensureFYs(fys);
+      for (const fy of fys) {
+        const list = get().txByFY[fy] ?? [];
+        if (list.some((t) => t.bucketId === id)) saveFY(fy, list.map((t) => (t.bucketId === id ? { ...t, bucketId: null } : t)));
+      }
+      get().update('buckets', (d) => ({ buckets: d.buckets.filter((b) => b.id !== id) }));
+    },
+
+    async renameTag(from, to) {
+      const fys = get().fysWith('tag', from);
+      await get().ensureFYs(fys);
+      let n = 0;
+      for (const fy of fys) {
+        const list = get().txByFY[fy] ?? [];
+        if (!list.some((t) => t.tags?.includes(from))) continue;
+        saveFY(
+          fy,
+          list.map((t) => {
+            if (!t.tags?.includes(from)) return t;
+            n++;
+            const tags = [...new Set(t.tags.map((x) => (x === from ? to : x)).filter(Boolean))];
+            return { ...t, tags };
+          }),
+        );
+      }
+      return n;
+    },
+
+    fysWith(kind, key) {
+      return Object.entries(get().summaries)
+        .filter(([, s]) => (kind === 'bucket' ? s.byBucket : s.byTag)?.[key])
+        .map(([fy]) => fy)
+        .sort();
+    },
+
+    async upgradeSummaries() {
+      const stale = Object.entries(get().summaries)
+        .filter(([, s]) => !s.byTag || !s.byBucket)
+        .map(([fy]) => fy);
+      if (!stale.length) return;
+      await get().ensureFYs(stale);
+      get().recomputeSummaries(stale);
+    },
+
     async refreshNavs(force = false) {
       const codes = get()
         .portfolio.assets.filter((a) => a.type === 'mutual_fund' && a.mf?.schemeCode && !a.closed)
@@ -465,4 +531,22 @@ export function useKnownFYs(): FY[] {
 export function useCatMap() {
   const cats = useStore((s) => s.meta.categories);
   return useMemo(() => new Map(cats.map((c) => [c.id, c])), [cats]);
+}
+
+/** All-time totals per bucket / tag, merged across FY summaries (no transactions loaded) */
+export function useGroupTotals(kind: 'bucket' | 'tag') {
+  const summaries = useStore((s) => s.summaries);
+  return useMemo(() => {
+    const lists = new Map<string, (GroupTotals | undefined)[]>();
+    for (const s of Object.values(summaries)) {
+      for (const [k, g] of Object.entries((kind === 'bucket' ? s.byBucket : s.byTag) ?? {})) {
+        const arr = lists.get(k);
+        if (arr) arr.push(g);
+        else lists.set(k, [g]);
+      }
+    }
+    const out = new Map<string, GroupTotals>();
+    for (const [k, l] of lists) out.set(k, mergeGroups(l)!);
+    return out;
+  }, [summaries, kind]);
 }

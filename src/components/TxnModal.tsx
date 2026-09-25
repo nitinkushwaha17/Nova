@@ -5,20 +5,23 @@ import { uid } from '../lib/format';
 import { classify, merchantOf } from '../lib/transactions';
 import { useCatMap, useStore } from '../store';
 import type { Rule, Transaction } from '../types';
+import { BucketSelect } from './BucketSelect';
 import { CategorySelect } from './CategorySelect';
 import { newRule, RuleModal } from './RuleModal';
+import { TagInput } from './TagInput';
 import { Badge, Button, Field, Input, Modal, NumberInput, Select, Tabs, toast } from './ui';
 
-export function TxnModal({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Transaction }) {
+/** defaults pre-fills a new transaction, e.g. { bucketId } when adding from a bucket */
+export function TxnModal({ open, onClose, initial, defaults }: { open: boolean; onClose: () => void; initial?: Transaction; defaults?: Partial<Transaction> }) {
   const accounts = useStore((s) => s.meta.accounts);
   const updateTransaction = useStore((s) => s.updateTransaction);
   const importTransactions = useStore((s) => s.importTransactions);
   const deleteTransactions = useStore((s) => s.deleteTransactions);
   const catMap = useCatMap();
-  const blank = (): Transaction => ({ id: uid('txn'), accountId: accounts[0]?.id ?? '', date: todayISO(), description: '', amount: 0, importId: 'manual' });
+  const blank = (): Transaction => ({ id: uid('txn'), accountId: accounts[0]?.id ?? '', date: todayISO(), description: '', amount: 0, importId: 'manual', ...defaults });
   const [t, setT] = useState<Transaction>(initial ?? blank());
   const [dir, setDir] = useState<'out' | 'in'>((initial?.amount ?? -1) < 0 ? 'out' : 'in');
-  const [tags, setTags] = useState((initial?.tags ?? []).join(', '));
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? defaults?.tags ?? []);
   const [ruleOpen, setRuleOpen] = useState(false);
   const [ruleInit, setRuleInit] = useState<Rule>();
   const [prev, setPrev] = useState({ initial, open });
@@ -27,7 +30,7 @@ export function TxnModal({ open, onClose, initial }: { open: boolean; onClose: (
     if (open) {
       setT(initial ?? blank());
       setDir((initial?.amount ?? -1) < 0 ? 'out' : 'in');
-      setTags((initial?.tags ?? []).join(', '));
+      setTags(initial?.tags ?? defaults?.tags ?? []);
     }
   }
   const isNew = !initial;
@@ -40,10 +43,8 @@ export function TxnModal({ open, onClose, initial }: { open: boolean; onClose: (
       ...t,
       description: t.description.trim(),
       amount: dir === 'out' ? -amount : amount,
-      tags: tags
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean),
+      tags,
+      bucketId: t.bucketId || null,
     };
     if (!final.description || !final.accountId || !amount) return;
     if (isNew) {
@@ -154,8 +155,11 @@ export function TxnModal({ open, onClose, initial }: { open: boolean; onClose: (
           <Field label="Notes" className="sm:col-span-2">
             <Input value={t.notes ?? ''} onChange={(e) => set({ notes: e.target.value })} placeholder="optional" />
           </Field>
-          <Field label="Tags" hint="Comma separated, e.g. goa-trip, reimbursable" className="sm:col-span-2">
-            <Input value={tags} onChange={(e) => setTags(e.target.value)} />
+          <Field label="Bucket" hint="Group with a trip, event or project">
+            <BucketSelect value={t.bucketId} onChange={(bucketId) => set({ bucketId })} />
+          </Field>
+          <Field label="Tags" hint="Enter or comma to add">
+            <TagInput value={tags} onChange={setTags} />
           </Field>
           {t.reference && (
             <div className="text-xs text-muted sm:col-span-2">

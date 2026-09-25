@@ -1,14 +1,16 @@
 import { ArrowLeftRight, Download, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { BucketSelect } from '../components/BucketSelect';
 import { CategorySelect } from '../components/CategorySelect';
 import { PeriodPicker } from '../components/PeriodPicker';
 import { TxnModal } from '../components/TxnModal';
 import { Badge, Button, Card, cx, Dot, Empty, Input, Money, PageHeader, Select, Spinner, toast } from '../components/ui';
 import { formatDate } from '../lib/dates';
-import { classify, type TxKind } from '../lib/transactions';
+import { bucketIcon } from '../lib/buckets';
+import { classify, normalizeTag, type TxKind } from '../lib/transactions';
 import { usePeriod, usePeriodTxns } from '../hooks';
-import { useCatMap, useKnownFYs, useStore } from '../store';
+import { useCatMap, useGroupTotals, useKnownFYs, useStore } from '../store';
 import type { Transaction } from '../types';
 
 const PAGE = 150;
@@ -74,6 +76,18 @@ export default function Transactions() {
     else if (v) p.set('category', v);
     setParams(p, { replace: true });
   };
+  const bucket = params.get('bucket') ?? '';
+  const tag = params.get('tag') ?? '';
+  const setParam = (key: 'bucket' | 'tag', v: string) => {
+    const p = new URLSearchParams(params);
+    if (v) p.set(key, v);
+    else p.delete(key);
+    setParams(p, { replace: true });
+  };
+  const buckets = useStore((s) => s.buckets.buckets);
+  const bucketMap = useMemo(() => new Map(buckets.map((b) => [b.id, b])), [buckets]);
+  const knownTags = useGroupTotals('tag');
+  const [bulkTag, setBulkTag] = useState('');
   const [kind, setKind] = useState<TxKind | ''>('');
   const [sort, setSort] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -93,6 +107,8 @@ export default function Transactions() {
       if (account && t.accountId !== account) return false;
       if (category === '__none' && t.category) return false;
       if (category && category !== '__none' && t.category !== category) return false;
+      if (bucket === '__none' ? t.bucketId : bucket && t.bucketId !== bucket) return false;
+      if (tag && !t.tags?.includes(tag)) return false;
       if (kind && classify(t, t.category ? catMap.get(t.category) : undefined) !== kind) return false;
       if (needle) {
         const hay = `${t.description} ${t.rawDescription ?? ''} ${t.notes ?? ''} ${(t.tags ?? []).join(' ')} ${t.subcategory ?? ''} ${t.reference ?? ''}`.toLowerCase();
@@ -113,7 +129,7 @@ export default function Transactions() {
       }
     });
     return list;
-  }, [txns, q, account, category, kind, sort, catMap]);
+  }, [txns, q, account, category, bucket, tag, kind, sort, catMap]);
 
   const totals = useMemo(() => {
     let inc = 0,
@@ -211,6 +227,27 @@ export default function Transactions() {
               </option>
             ))}
           </Select>
+          {buckets.length > 0 && (
+            <Select value={bucket} onChange={(e) => setParam('bucket', e.target.value)} className="!w-auto">
+              <option value="">All buckets</option>
+              <option value="__none">Not in a bucket</option>
+              {buckets.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {bucketIcon(b)} {b.name}
+                </option>
+              ))}
+            </Select>
+          )}
+          {(knownTags.size > 0 || tag) && (
+            <Select value={tag} onChange={(e) => setParam('tag', e.target.value)} className="!w-auto">
+              <option value="">All tags</option>
+              {[...new Set([...knownTags.keys(), ...(tag ? [tag] : [])])].sort().map((t) => (
+                <option key={t} value={t}>
+                  #{t}
+                </option>
+              ))}
+            </Select>
+          )}
           <Select value={kind} onChange={(e) => setKind(e.target.value as TxKind | '')} className="!w-auto">
             <option value="">All types</option>
             {Object.entries(KIND_LABEL).map(([k, v]) => (
@@ -263,18 +300,43 @@ export default function Transactions() {
           <Button size="sm" onClick={() => (updateTransactions(ids, { isTransfer: false, autoTransfer: false }), setSelected(new Set()))}>
             Not transfer
           </Button>
-          <Button
-            size="sm"
-            icon={<Tag className="size-3.5" />}
-            onClick={() => {
-              const tag = window.prompt('Add tag')?.trim();
-              if (!tag) return;
-              for (const t of filtered.filter((x) => selected.has(x.id))) updateTransactions([t.id], { tags: [...new Set([...(t.tags ?? []), tag])] });
+          <div className="w-44">
+            <BucketSelect
+              emptyLabel="Move to bucket…"
+              className="!h-8 text-xs"
+              onChange={(id) => {
+                if (!id) return;
+                updateTransactions(ids, { bucketId: id });
+                toast(`Added ${ids.length} to ${bucketMap.get(id)?.name ?? 'bucket'}`);
+                setSelected(new Set());
+              }}
+            />
+          </div>
+          {filtered.some((t) => selected.has(t.id) && t.bucketId) && (
+            <Button size="sm" onClick={() => (updateTransactions(ids, { bucketId: null }), setSelected(new Set()))}>
+              Remove from bucket
+            </Button>
+          )}
+          <form
+            className="relative"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const tg = normalizeTag(bulkTag);
+              if (!tg) return;
+              for (const t of filtered.filter((x) => selected.has(x.id))) updateTransactions([t.id], { tags: [...new Set([...(t.tags ?? []), tg])] });
+              toast(`Tagged ${ids.length} with #${tg}`);
+              setBulkTag('');
               setSelected(new Set());
             }}
           >
-            Tag
-          </Button>
+            <Tag className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-faint" />
+            <Input list="bulk-tags" value={bulkTag} onChange={(e) => setBulkTag(e.target.value)} placeholder="Add tag ⏎" className="!h-8 w-32 !pl-7 text-xs" />
+            <datalist id="bulk-tags">
+              {[...knownTags.keys()].map((t) => (
+                <option key={t} value={t} />
+              ))}
+            </datalist>
+          </form>
           <Button
             size="sm"
             variant="danger"
@@ -340,9 +402,18 @@ export default function Transactions() {
                         <div className="flex items-center gap-1.5 truncate text-[11px] text-faint">
                           {accName(t.accountId)}
                           {(k === 'transfer' || k === 'refund' || k === 'investment') && <Badge color={KIND_COLOR[k]}>{KIND_LABEL[k]}</Badge>}
+                          {t.bucketId && bucketMap.get(t.bucketId) && (
+                            <Link to={`/buckets/${t.bucketId}`}>
+                              <Badge color={bucketMap.get(t.bucketId)!.color}>
+                                {bucketIcon(bucketMap.get(t.bucketId)!)} {bucketMap.get(t.bucketId)!.name}
+                              </Badge>
+                            </Link>
+                          )}
                           {t.notes && <span className="truncate">· {t.notes}</span>}
-                          {t.tags?.map((tag) => (
-                            <Badge key={tag}>#{tag}</Badge>
+                          {t.tags?.map((tg) => (
+                            <button key={tg} onClick={() => setParam('tag', tg)}>
+                              <Badge>#{tg}</Badge>
+                            </button>
                           ))}
                         </div>
                       </td>
@@ -367,7 +438,7 @@ export default function Transactions() {
           </div>
         )}
       </Card>
-      <TxnModal open={modal} onClose={() => setModal(false)} initial={edit} />
+      <TxnModal open={modal} onClose={() => setModal(false)} initial={edit} defaults={bucket && bucket !== '__none' ? { bucketId: bucket } : undefined} />
     </>
   );
 }

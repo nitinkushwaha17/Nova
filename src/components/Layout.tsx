@@ -23,12 +23,14 @@ import {
   Wallet,
   AlertTriangle,
   CreditCard,
+  Luggage,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useStore } from '../store';
 import { useAutoSnapshot } from '../hooks';
 import { reauthorize, syncNow, useSync } from '../sync/engine';
+import { ProfileSwitcher } from './Profiles';
 import { cx, IconButton, Spinner, toast } from './ui';
 
 const NAV: { group: string; items: { to: string; label: string; icon: ReactNode }[] }[] = [
@@ -46,6 +48,7 @@ const NAV: { group: string; items: { to: string; label: string; icon: ReactNode 
       { to: '/import', label: 'Import', icon: <Upload /> },
       { to: '/accounts', label: 'Accounts', icon: <Wallet /> },
       { to: '/categories', label: 'Categories & rules', icon: <Tags /> },
+      { to: '/buckets', label: 'Buckets & tags', icon: <Luggage /> },
     ],
   },
   {
@@ -156,6 +159,7 @@ export function Layout() {
             <div className="mt-0.5 text-[10px] tracking-widest text-faint uppercase">Personal finance</div>
           </div>
         </Link>
+        <ProfileSwitcher />
         <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-4">
           {NAV.map((g) => (
             <div key={g.group}>

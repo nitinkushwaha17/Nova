@@ -52,7 +52,10 @@ export interface Transaction {
   category?: string | null;
   subcategory?: string | null;
   notes?: string;
+  /** Free-form labels (normalised: lowercase, dashes), many per transaction */
   tags?: string[];
+  /** The event / purpose this belongs to (a trip, a wedding…) — at most one */
+  bucketId?: ID | null;
   /** Manually marked as transfer (true) / not transfer (false); undefined = auto */
   isTransfer?: boolean;
   /** Auto-detected transfer (self-transfer pair / sweep) */
@@ -107,7 +110,42 @@ export interface FYSummary {
   count: number;
   /** Latest known balance per account within this FY */
   lastBalances: Record<ID, { date: ISODate; balance: number }>;
+  /** Totals per bucket id (absent in summaries written before buckets existed) */
+  byBucket?: Record<ID, GroupTotals>;
+  /** Totals per tag */
+  byTag?: Record<string, GroupTotals>;
   updatedAt: string;
+}
+
+/** Money out / in for a bucket or tag. Self-transfers are excluded. */
+export interface GroupTotals {
+  spent: number;
+  received: number;
+  count: number;
+  first: ISODate;
+  last: ISODate;
+}
+
+// ─── Buckets ────────────────────────────────────────────────────────────────
+
+export type BucketKind = 'trip' | 'event' | 'project' | 'home' | 'other';
+
+export interface Bucket {
+  id: ID;
+  name: string;
+  kind: BucketKind;
+  emoji?: string;
+  color: string;
+  startDate?: ISODate;
+  endDate?: ISODate;
+  budget?: number;
+  notes?: string;
+  archived?: boolean;
+  createdAt: string;
+}
+
+export interface BucketsDoc {
+  buckets: Bucket[];
 }
 
 export type SummariesDoc = Record<FY, FYSummary>;

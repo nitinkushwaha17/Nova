@@ -8,6 +8,8 @@ A private, local-first finance app for tracking your whole financial life in Ind
 | --- | --- |
 | **Import** | CSV / TSV / XLS / XLSX / ODS statements from any bank, with auto-detected columns and a manual mapping fallback. Duplicate detection, transfer detection, and a per-account balance trail. Also imports backups from the old Bank-statement-analyser. |
 | **Transactions** | Search, filters, and single or bulk categorisation. Rules auto-categorise new imports and can be re-applied to history. |
+| **Buckets & tags** | A bucket groups spending for one thing (a trip, wedding or renovation) across categories, with dates, a budget, net cost after reimbursements, daily spend and a category/tag breakdown. "Find transactions" pulls unassigned spends from the bucket's dates. Tags are free-form labels (e.g. `#reimbursable`, `#work`). A transaction can carry many tags but belongs to at most one bucket. Both work alongside categories. |
+| **Profiles** | Separate datasets for you, a spouse, parents or a business, each with its own accounts, transactions, assets and taxes. Switch from the sidebar. |
 | **Categories & rules** | Editable categories and subcategories (expense / income / investment / transfer), plus regex or "contains" rules. |
 | **Analytics** | Any period: income, spending, investments and savings rate. Category donut with drill-down, top merchants, recurring payments, largest expenses, income sources, and GST paid by category. |
 | **Assets** | FD / RD (maturity maths), mutual funds (live NAV from mfapi.in), stocks (one aggregate value updated manually), PPF, EPF, NPS, gold, bonds, real estate, crypto, cash and more. Shows invested amount, gain and XIRR per asset and for the whole portfolio. |
@@ -69,14 +71,17 @@ The data is split into small JSON files, so Nova only downloads what a screen ne
 | `networth.json` | Monthly net worth snapshots | at startup |
 | `planning.json` | Budgets, goals, insurance, emergency-fund settings | at startup |
 | `cpi.json` | Your inflation table | at startup |
+| `buckets.json` | Buckets (name, kind, dates, budget). Transactions reference them by `bucketId`; per-bucket and per-tag totals live in `summaries.json`. | at startup |
 | `transactions__FY2025-26.json` | All transactions of one financial year (one file per FY) | when a screen needs that FY |
 | `tax__FY2025-26.json` | Income, deductions and tax payments of one FY | when you open that FY's taxes |
 
+**Profiles.** `profiles.json` lists the profiles (tombstones mark deletions so they reach other devices). The first profile uses the file names above. Every other profile gets the same set of files with a `p-<id>--` prefix, e.g. `p-k3x9--manifest.json` and `p-k3x9--transactions__FY2025-26.json`, all in the same app folder. Deleting a profile removes its files from Drive on the next sync.
+
 Files are plain, readable JSON. **Settings → Backup & restore → Export everything** downloads all of them as one file.
 
-### In the browser (IndexedDB database `nova`)
+### In the browser (IndexedDB database `nova`, or `nova-<id>` for other profiles)
 
-IndexedDB is a local cache and offline store. It has three object stores:
+IndexedDB is a local cache and offline store. Each profile has its own database, so switching profiles never mixes data. The profile list and the active profile are kept in `localStorage`. Each database has three object stores:
 
 - **`files`**: one record per file above, with the same `name` and `data`, plus sync bookkeeping (`localRev`, `remoteRev`, `dirty`, `updatedAt`). Every edit is written here first, so the app is instant and works offline. Dirty files are uploaded to Drive in the background, debounced.
 - **`sync`**: the last Drive manifest seen, the last sync time and a device ID.
