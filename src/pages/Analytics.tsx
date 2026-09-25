@@ -1,6 +1,6 @@
-import { ArrowDownRight, ArrowUpRight, ChevronLeft, PiggyBank, Receipt, Repeat, Store, Wallet } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChevronLeft, List, PiggyBank, Receipt, Repeat, Store, Wallet } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { PeriodPicker } from '../components/PeriodPicker';
 import { axisMoney, Badge, Card, ChartTooltip, Dot, Empty, Money, PageHeader, Progress, Select, Spinner, Stat } from '../components/ui';
@@ -22,6 +22,19 @@ export default function Analytics() {
   const catMap = useCatMap();
   const [account, setAccount] = useState('');
   const [drill, setDrill] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const catMeta = useStore((s) => s.meta.categories);
+  /** Transactions page filtered to a category (and optionally a subcategory) for the current period */
+  const txHref = (catId: string, subName?: string) => {
+    const p = new URLSearchParams();
+    if (catId === '__none') p.set('uncategorized', '1');
+    else {
+      p.set('category', catId);
+      // analyze() files transactions without a subcategory under "Other"
+      if (subName) p.set('sub', subName === 'Other' && !catMeta.find((x) => x.id === catId)?.subcategories.includes('Other') ? '__none' : subName);
+    }
+    return `/transactions?${p}`;
+  };
 
   useEffect(() => {
     for (const fy of fys) void ensureTax(fy);
@@ -124,7 +137,16 @@ export default function Analytics() {
               </div>
             </Card>
 
-            <Card title={drillCat ? `${drillCat.name} by subcategory` : 'Where the money went'}>
+            <Card
+              title={drillCat ? `${drillCat.name} by subcategory` : 'Where the money went'}
+              action={
+                drillCat && (
+                  <Link to={txHref(drillCat.id)} className="flex items-center gap-1 text-xs text-accent hover:underline">
+                    <List className="size-3.5" /> View {drillCat.count} transactions
+                  </Link>
+                )
+              }
+            >
               <div className="flex items-center gap-4">
                 <div className="relative h-44 w-44 shrink-0">
                   <ResponsiveContainer>
@@ -140,6 +162,7 @@ export default function Analytics() {
                         onClick={(_d, i) => {
                           const p = pieData.filter((x) => x.value > 0)[i];
                           if (!drill && p && 'id' in p) setDrill(p.id as string);
+                          else if (drill && p) navigate(txHref(drill, p.name));
                         }}
                         className="cursor-pointer outline-none"
                       >
@@ -163,16 +186,23 @@ export default function Analytics() {
                 </div>
                 <div className="max-h-44 min-w-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                   {pieData.map((p) => (
-                    <button
-                      key={p.name}
-                      onClick={() => !drill && 'id' in p && setDrill(p.id as string)}
-                      className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left text-xs hover:bg-surface-2"
-                    >
-                      <Dot color={p.color} className="size-2" />
-                      <span className="flex-1 truncate">{p.name}</span>
-                      <span className="text-faint">{pctOf(p.value, pieTotal)}</span>
-                      <Money value={p.value} short className="w-16 text-right font-medium" />
-                    </button>
+                    <div key={p.name} className="group flex items-center gap-1 rounded-md hover:bg-surface-2">
+                      <button
+                        onClick={() => (drill ? navigate(txHref(drill, p.name)) : 'id' in p && setDrill(p.id as string))}
+                        title={drill ? `View ${p.name} transactions` : `Break down ${p.name}`}
+                        className="flex min-w-0 flex-1 items-center gap-2 px-1 py-0.5 text-left text-xs"
+                      >
+                        <Dot color={p.color} className="size-2" />
+                        <span className="flex-1 truncate">{p.name}</span>
+                        <span className="text-faint">{pctOf(p.value, pieTotal)}</span>
+                        <Money value={p.value} short className="w-16 text-right font-medium" />
+                      </button>
+                      {!drill && 'id' in p && (
+                        <Link to={txHref(p.id as string)} title={`View ${p.name} transactions`} className="p-0.5 text-faint opacity-0 group-hover:opacity-100 hover:text-accent">
+                          <List className="size-3.5" />
+                        </Link>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -184,9 +214,20 @@ export default function Analytics() {
               <div className="space-y-3">
                 {a.byCategory.slice(0, 10).map((c) => (
                   <button key={c.id} className="block w-full text-left" onClick={() => setDrill(c.id)}>
-                    <div className="mb-1 flex items-center gap-2 text-sm">
+                    <div className="group mb-1 flex items-center gap-2 text-sm">
                       <Dot color={c.color} />
                       <span className="flex-1 truncate">{c.name}</span>
+                      <span
+                        role="link"
+                        title={`View ${c.name} transactions`}
+                        className="text-faint opacity-0 group-hover:opacity-100 hover:text-accent"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(txHref(c.id));
+                        }}
+                      >
+                        <List className="size-3.5" />
+                      </span>
                       <span className="text-xs text-faint">{c.count}×</span>
                       <Money value={c.amount} className="font-medium" />
                     </div>

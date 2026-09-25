@@ -1,12 +1,12 @@
 import { ArrowLeftRight, Download, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CollectionSelect } from '../components/CollectionSelect';
 import { CategorySelect } from '../components/CategorySelect';
-import { PeriodPicker } from '../components/PeriodPicker';
+import { defaultPeriod, PeriodPicker } from '../components/PeriodPicker';
 import { TxnModal } from '../components/TxnModal';
 import { Badge, Button, Card, cx, Dot, Empty, Input, Money, PageHeader, Select, Spinner, toast } from '../components/ui';
-import { formatDate } from '../lib/dates';
+import { currentFY, formatDate, periodLabel } from '../lib/dates';
 import { collectionIcon } from '../lib/collections';
 import { classify, normalizeTag, type TxKind } from '../lib/transactions';
 import { usePeriod, usePeriodTxns } from '../hooks';
@@ -68,17 +68,19 @@ export default function Transactions() {
   const [q, setQ] = useState(params.get('q') ?? '');
   const [account, setAccount] = useState(params.get('account') ?? '');
   const category = params.get('uncategorized') ? '__none' : (params.get('category') ?? '');
+  const sub = category && category !== '__none' ? (params.get('sub') ?? '') : '';
   const setCategory = (v: string) => {
     const p = new URLSearchParams(params);
     p.delete('uncategorized');
     p.delete('category');
+    p.delete('sub');
     if (v === '__none') p.set('uncategorized', '1');
     else if (v) p.set('category', v);
     setParams(p, { replace: true });
   };
   const collection = params.get('collection') ?? '';
   const tag = params.get('tag') ?? '';
-  const setParam = (key: 'collection' | 'tag', v: string) => {
+  const setParam = (key: 'collection' | 'tag' | 'sub', v: string) => {
     const p = new URLSearchParams(params);
     if (v) p.set(key, v);
     else p.delete(key);
@@ -88,7 +90,7 @@ export default function Transactions() {
   const collectionMap = useMemo(() => new Map(collections.map((b) => [b.id, b])), [collections]);
   const knownTags = useGroupTotals('tag');
   const [bulkTag, setBulkTag] = useState('');
-  const [kind, setKind] = useState<TxKind | ''>('');
+  const [kind, setKind] = useState<TxKind | ''>((params.get('kind') as TxKind | null) ?? '');
   const [sort, setSort] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(PAGE);
@@ -100,6 +102,28 @@ export default function Transactions() {
     return (id: string) => m.get(id) ?? '—';
   }, [accounts]);
 
+  const catName = category === '__none' ? 'Uncategorised' : (catMap.get(category)?.name ?? category);
+  const activeFilters: { key: string; label: string; value: ReactNode; color?: string; clear: () => void }[] = [];
+  if (!(period.preset === 'fy' && period.fy === currentFY()))
+    activeFilters.push({ key: 'period', label: 'Period', value: periodLabel(period), clear: () => setPeriod(defaultPeriod()) });
+  if (q.trim()) activeFilters.push({ key: 'q', label: 'Search', value: `"${q.trim()}"`, clear: () => setQ('') });
+  if (account) activeFilters.push({ key: 'account', label: 'Account', value: accName(account), clear: () => setAccount('') });
+  if (category) activeFilters.push({ key: 'category', label: 'Category', value: catName, color: catMap.get(category)?.color, clear: () => setCategory('') });
+  if (sub) activeFilters.push({ key: 'sub', label: 'Subcategory', value: sub === '__none' ? 'None' : sub, clear: () => setParam('sub', '') });
+  if (collection) {
+    const c = collectionMap.get(collection);
+    activeFilters.push({ key: 'collection', label: 'Collection', value: collection === '__none' ? 'Not in a collection' : c ? `${collectionIcon(c)} ${c.name}` : 'Deleted', color: c?.color, clear: () => setParam('collection', '') });
+  }
+  if (tag) activeFilters.push({ key: 'tag', label: 'Tag', value: `#${tag}`, clear: () => setParam('tag', '') });
+  if (kind) activeFilters.push({ key: 'kind', label: 'Type', value: KIND_LABEL[kind], color: KIND_COLOR[kind], clear: () => setKind('') });
+  const clearAll = () => {
+    setQ('');
+    setAccount('');
+    setKind('');
+    setParams(new URLSearchParams(), { replace: true });
+    setPeriod(defaultPeriod());
+  };
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const amt = Number(needle.replace(/[,₹]/g, ''));
@@ -107,6 +131,7 @@ export default function Transactions() {
       if (account && t.accountId !== account) return false;
       if (category === '__none' && t.category) return false;
       if (category && category !== '__none' && t.category !== category) return false;
+      if (sub && (sub === '__none' ? t.subcategory : t.subcategory !== sub)) return false;
       if (collection === '__none' ? t.collectionId : collection && t.collectionId !== collection) return false;
       if (tag && !t.tags?.includes(tag)) return false;
       if (kind && classify(t, t.category ? catMap.get(t.category) : undefined) !== kind) return false;
@@ -129,7 +154,7 @@ export default function Transactions() {
       }
     });
     return list;
-  }, [txns, q, account, category, collection, tag, kind, sort, catMap]);
+  }, [txns, q, account, category, sub, collection, tag, kind, sort, catMap]);
 
   const totals = useMemo(() => {
     let inc = 0,
@@ -263,6 +288,24 @@ export default function Transactions() {
             <option value="amount-asc">Smallest first</option>
           </Select>
         </div>
+        {activeFilters.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
+            <span className="mr-1 text-xs text-faint">Filtered by</span>
+            {activeFilters.map((f) => (
+              <span key={f.key} className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/10 pr-1 pl-2.5 text-xs">
+                {f.color && <Dot color={f.color} className="size-2" />}
+                <span className="text-muted">{f.label}:</span>
+                <span className="max-w-48 truncate font-medium">{f.value}</span>
+                <button onClick={f.clear} title={`Remove ${f.label.toLowerCase()} filter`} className="grid size-5 place-items-center rounded-md text-muted hover:bg-accent/20 hover:text-fg">
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+            <button onClick={clearAll} className="ml-1 text-xs font-medium text-accent hover:underline">
+              Clear all
+            </button>
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap gap-4 px-1 text-xs text-muted">
           <span>
             Income <Money value={totals.inc} className="font-medium text-pos" />
@@ -361,7 +404,19 @@ export default function Transactions() {
             <Spinner className="size-6" />
           </div>
         ) : !filtered.length ? (
-          <Empty icon={<ArrowLeftRight />} title={txns.length ? 'No matching transactions' : 'No transactions in this period'} action={!txns.length && <Link to="/import"><Button variant="primary">Import a statement</Button></Link>}>
+          <Empty
+            icon={<ArrowLeftRight />}
+            title={txns.length ? 'No matching transactions' : 'No transactions in this period'}
+            action={
+              txns.length ? (
+                activeFilters.length > 0 && <Button onClick={clearAll}>Clear all filters</Button>
+              ) : (
+                <Link to="/import">
+                  <Button variant="primary">Import a statement</Button>
+                </Link>
+              )
+            }
+          >
             {txns.length ? 'Try clearing a filter.' : 'Import a bank or card statement, or pick another period.'}
           </Empty>
         ) : (
