@@ -153,3 +153,16 @@ describe('gst', () => {
     expect(gstEmbedded(118, 0.18)).toBeCloseTo(18, 6);
   });
 });
+
+describe('default rules', () => {
+  it('categorises common merchants and respects direction', async () => {
+    const { DEFAULT_RULES } = await import('./defaults');
+    const { findRule } = await import('./transactions');
+    const t = (description: string, amount = -100) => ({ id: 'x', accountId: 'a', date: '2025-01-01', description, amount });
+    expect(findRule(DEFAULT_RULES, t('UPI/ZOMATO LTD/123'))?.subcategory).toBe('Food Delivery');
+    expect(findRule(DEFAULT_RULES, t('POS JIOMART BLR'))?.subcategory).toBe('Groceries');
+    expect(findRule(DEFAULT_RULES, t('NEFT SALARY ACME', 100000))?.category).toBe('income');
+    expect(findRule(DEFAULT_RULES, t('NEFT SALARY ACME', -100))).toBeUndefined();
+    expect(findRule(DEFAULT_RULES, t('DESCRIPTION WITH NOTHING'))).toBeUndefined();
+  });
+});

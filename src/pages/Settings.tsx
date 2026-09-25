@@ -1,5 +1,398 @@
-import { PageHeader } from '../components/ui';
+import { AlertTriangle, Cloud, CloudOff, Database, Download, FileJson, HardDrive, LogOut, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AccountModal } from '../components/AccountModal';
+import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Tabs, toast } from '../components/ui';
+import { convertLegacy, isLegacyBackup } from '../lib/parsers/legacy';
+import { allFiles } from '../storage/db';
+import { CORE_FILES } from '../storage/files';
+import { useStore, type FullBackup } from '../store';
+import { connect, disconnect, refreshConfigStatus, resolveConflict, syncNow, useSync } from '../sync/engine';
+import { connectedEmail, getClientId, isConnected, setClientId } from '../sync/google';
+import type { StoredFile } from '../types';
+
+const ENV_CLIENT = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+function DriveCard() {
+  const sync = useSync();
+  const [clientId, setCid] = useState(getClientId());
+  const [busy, setBusy] = useState(false);
+  const connected = isConnected();
+
+  const doConnect = async () => {
+    setBusy(true);
+    try {
+      await connect();
+      toast('Connected to Google Drive');
+    } catch (e) {
+      toast((e as Error).message || 'Sign-in failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          <Cloud className="size-4" /> Google Drive sync
+        </span>
+      }
+    >
+      <p className="mb-4 text-sm text-muted">
+        Data is stored as JSON files in your Drive's hidden <b>app data folder</b> — private to Nova, not visible in your Drive file list and not accessible to other apps. Only
+        the files a page needs are downloaded (settings and summaries always; transactions and tax data per financial year on demand).
+      </p>
+      {!ENV_CLIENT && (
+        <Field label="Google OAuth Client ID" hint="Create a Web OAuth client in Google Cloud Console (see README). Stored only in this browser." className="mb-4">
+          <div className="flex gap-2">
+            <Input value={clientId} onChange={(e) => setCid(e.target.value)} placeholder="xxxxxxxx.apps.googleusercontent.com" />
+            <Button
+              onClick={() => {
+                setClientId(clientId.trim());
+                refreshConfigStatus();
+                toast('Client ID saved');
+              }}
+              disabled={clientId.trim() === getClientId()}
+            >
+              Save
+            </Button>
+          </div>
+        </Field>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        {connected ? (
+          <>
+            <Badge color="#34d399">Connected{connectedEmail() ? ` · ${connectedEmail()}` : ''}</Badge>
+            {sync.status === 'needs-auth' ? (
+              <Button variant="primary" icon={<RefreshCw className="size-4" />} loading={busy} onClick={doConnect}>
+                Reconnect & sync
+              </Button>
+            ) : (
+              <Button icon={<RefreshCw className="size-4" />} loading={sync.status === 'syncing'} onClick={() => void syncNow()}>
+                Sync now
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              icon={<LogOut className="size-4" />}
+              onClick={() => {
+                disconnect();
+                toast('Disconnected. Data stays on this device.', 'info');
+              }}
+            >
+              Disconnect
+            </Button>
+          </>
+        ) : (
+          <Button variant="primary" icon={<Cloud className="size-4" />} loading={busy} disabled={!getClientId()} onClick={doConnect}>
+            Connect Google Drive
+          </Button>
+        )}
+      </div>
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <div>
+          <dt className="text-xs text-muted">Status</dt>
+          <dd className="font-medium capitalize">{sync.status.replace('-', ' ')}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted">Last sync</dt>
+          <dd className="font-medium">{sync.lastSyncAt ? new Date(sync.lastSyncAt).toLocaleString() : '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted">Pending uploads</dt>
+          <dd className="font-medium">{sync.pending}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted">Files on Drive</dt>
+          <dd className="font-medium">{Object.keys(sync.remoteFiles).length}</dd>
+        </div>
+      </dl>
+      {sync.error && <p className="mt-3 text-sm text-neg">{sync.error}</p>}
+      {sync.conflicts.length > 0 && (
+        <div id="sync" className="mt-4 rounded-xl border border-warn/40 bg-warn/5 p-4">
+          <p className="mb-3 flex items-center gap-2 text-sm font-medium text-warn">
+            <AlertTriangle className="size-4" /> These files changed on this device and on another device. Choose which copy to keep.
+          </p>
+          <div className="space-y-2">
+            {sync.conflicts.map((c) => (
+              <div key={c.name} className="flex flex-wrap items-center gap-3 text-sm">
+                <code className="font-mono text-xs">{c.name}</code>
+                <span className="text-xs text-muted">
+                  this device {new Date(c.localUpdatedAt).toLocaleString()} · Drive {new Date(c.remoteUpdatedAt).toLocaleString()}
+                </span>
+                <div className="ml-auto flex gap-2">
+                  <Button size="sm" onClick={() => void resolveConflict(c.name, 'local')}>
+                    Keep this device
+                  </Button>
+                  <Button size="sm" onClick={() => void resolveConflict(c.name, 'remote')}>
+                    Keep Drive
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function StorageCard() {
+  const remote = useSync((s) => s.remoteFiles);
+  const pending = useSync((s) => s.pending);
+  const txByFY = useStore((s) => s.txByFY);
+  const [files, setFiles] = useState<StoredFile[]>([]);
+  useEffect(() => {
+    void allFiles().then(setFiles);
+  }, [pending, remote, txByFY]);
+  const names = [...new Set([...files.map((f) => f.name), ...Object.keys(remote)])].sort((a, b) => {
+    const ca = (CORE_FILES as string[]).includes(a) ? 0 : 1;
+    const cb = (CORE_FILES as string[]).includes(b) ? 0 : 1;
+    return ca - cb || a.localeCompare(b);
+  });
+  const byName = new Map(files.map((f) => [f.name, f]));
+  return (
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          <Database className="size-4" /> Data files
+        </span>
+      }
+    >
+      <p className="mb-3 text-sm text-muted">
+        Each row is one JSON document, cached in this browser's IndexedDB and mirrored to Drive as <code className="font-mono text-xs">name.json</code>.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-muted">
+            <tr>
+              <th className="py-1.5 font-medium">File</th>
+              <th className="font-medium">Records</th>
+              <th className="font-medium">Size</th>
+              <th className="font-medium">This device</th>
+              <th className="font-medium">Drive</th>
+            </tr>
+          </thead>
+          <tbody>
+            {names.map((n) => {
+              const f = byName.get(n);
+              const size = f ? new Blob([JSON.stringify(f.data)]).size : 0;
+              const count = f && f.data && typeof f.data === 'object' ? (Array.isArray(f.data) ? f.data.length : Object.keys(f.data).length) : null;
+              return (
+                <tr key={n} className="border-t border-line">
+                  <td className="py-1.5 font-mono text-xs">{n}</td>
+                  <td className="tabular text-muted">{count ?? '—'}</td>
+                  <td className="tabular text-muted">{f ? `${(size / 1024).toFixed(1)} KB` : '—'}</td>
+                  <td>{f ? f.dirty ? <Badge color="#fbbf24">changed</Badge> : <Badge>cached</Badge> : <span className="text-xs text-faint">not loaded</span>}</td>
+                  <td>{remote[n] ? <Badge color="#34d399">rev {remote[n].rev}</Badge> : <span className="text-xs text-faint">—</span>}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {!names.length && <p className="py-6 text-center text-sm text-muted">Nothing stored yet.</p>}
+      </div>
+    </Card>
+  );
+}
+
+function BackupCard() {
+  const store = useStore();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [legacyRaw, setLegacyRaw] = useState<Parameters<typeof convertLegacy>[0] | null>(null);
+  const [accountId, setAccountId] = useState('');
+  const [newAcc, setNewAcc] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const legacy = legacyRaw ? convertLegacy(legacyRaw, accountId || 'tmp', store.meta.categories) : null;
+
+  const exportAll = async () => {
+    setBusy(true);
+    try {
+      const b = await store.exportAll();
+      const url = URL.createObjectURL(new Blob([JSON.stringify(b, null, 2)], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nova-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onFile = async (f: File) => {
+    try {
+      const data = JSON.parse(await f.text());
+      if (data?.app === 'nova') {
+        if (!window.confirm('Replace ALL data on this device (and Drive, on next sync) with this backup?')) return;
+        await store.replaceAll(data as FullBackup);
+        toast('Backup restored');
+      } else if (isLegacyBackup(data)) {
+        setAccountId(store.meta.accounts[0]?.id ?? '');
+        setLegacyRaw(data);
+      } else toast('Not a Nova or Bank Statement Analyser backup', 'error');
+    } catch {
+      toast('Could not read that file', 'error');
+    }
+  };
+
+  const importLegacy = async () => {
+    if (!legacy || !accountId) return;
+    setBusy(true);
+    try {
+      if (legacy.newCategories.length) store.saveCategories([...store.meta.categories, ...legacy.newCategories]);
+      const existing = new Set(store.meta.rules.map((r) => `${r.pattern.toLowerCase()}|${r.category}`));
+      const rules = legacy.rules.filter((r) => !existing.has(`${r.pattern.toLowerCase()}|${r.category}`));
+      if (rules.length) store.saveRules([...useStore.getState().meta.rules, ...rules]);
+      const res = await useStore.getState().importTransactions(legacy.transactions);
+      toast(`Imported ${res.added} transactions (${res.duplicates} duplicates skipped), ${rules.length} rules`);
+      setLegacyRaw(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          <HardDrive className="size-4" /> Backup & restore
+        </span>
+      }
+    >
+      <div className="flex flex-wrap gap-2">
+        <Button icon={<Download className="size-4" />} loading={busy && !legacy} onClick={exportAll}>
+          Export everything (JSON)
+        </Button>
+        <Button icon={<Upload className="size-4" />} onClick={() => fileRef.current?.click()}>
+          Restore / import backup
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            if (f) void onFile(f);
+          }}
+        />
+      </div>
+      <p className="mt-3 text-xs text-muted">
+        Restore accepts a Nova backup, or a backup exported from the old <b>Bank Statement Analyser</b> (transactions, categories and auto-label rules are migrated).
+      </p>
+
+      <Modal
+        open={!!legacy}
+        onClose={() => setLegacyRaw(null)}
+        title={
+          <span className="flex items-center gap-2">
+            <FileJson className="size-4" /> Import Bank Statement Analyser backup
+          </span>
+        }
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setLegacyRaw(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" loading={busy} disabled={!accountId} onClick={importLegacy}>
+              Import {legacy?.transactions.length} transactions
+            </Button>
+          </>
+        }
+      >
+        {legacy && (
+          <div className="space-y-4 text-sm">
+            <p className="text-muted">
+              Found <b className="text-fg">{legacy.transactions.length}</b> transactions, <b className="text-fg">{legacy.rules.length}</b> rules and{' '}
+              <b className="text-fg">{legacy.newCategories.length}</b> new categories{legacy.profileName ? ` from profile “${legacy.profileName}”` : ''}.
+            </p>
+            <Field label="Assign transactions to account">
+              <div className="flex gap-2">
+                <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                  <option value="">Select account…</option>
+                  {store.meta.accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </Select>
+                <Button onClick={() => setNewAcc(true)}>New</Button>
+              </div>
+            </Field>
+          </div>
+        )}
+      </Modal>
+      <AccountModal open={newAcc} onClose={() => setNewAcc(false)} onSaved={(a) => setAccountId(a.id)} />
+    </Card>
+  );
+}
+
+function PreferencesCard() {
+  const settings = useStore((s) => s.settings);
+  const update = useStore((s) => s.update);
+  const resetAll = useStore((s) => s.resetAll);
+  return (
+    <Card title="Preferences">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Your name">
+          <Input value={settings.displayName ?? ''} onChange={(e) => update('settings', (s) => ({ ...s, displayName: e.target.value }))} placeholder="Shown on the dashboard" />
+        </Field>
+        <Field label="Theme">
+          <Tabs
+            value={settings.theme}
+            onChange={(theme) => update('settings', (s) => ({ ...s, theme }))}
+            options={[
+              { value: 'dark', label: 'Dark' },
+              { value: 'light', label: 'Light' },
+            ]}
+          />
+        </Field>
+      </div>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neg/25 p-4">
+        <div>
+          <p className="text-sm font-medium">Clear this device</p>
+          <p className="text-xs text-muted">Deletes the local IndexedDB copy. Data already on Drive is kept and re-downloads when you reconnect.</p>
+        </div>
+        <Button
+          variant="danger"
+          icon={<Trash2 className="size-4" />}
+          onClick={async () => {
+            if (!window.confirm('Delete all Nova data from this browser? Unsynced changes will be lost.')) return;
+            disconnect();
+            await resetAll();
+            toast('Local data cleared', 'info');
+          }}
+        >
+          Clear local data
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 export default function Settings() {
-  return <PageHeader title="Settings" subtitle="Coming up" />;
+  return (
+    <>
+      <PageHeader
+        title="Settings & sync"
+        subtitle={
+          <span className="flex items-center gap-1.5">
+            <CloudOff className="size-3.5" /> Local-first: everything works offline; Drive is your private backup and cross-device sync.
+          </span>
+        }
+      />
+      <div className="grid gap-5 xl:grid-cols-2">
+        <div className="space-y-5">
+          <DriveCard />
+          <BackupCard />
+          <PreferencesCard />
+        </div>
+        <StorageCard />
+      </div>
+    </>
+  );
 }
