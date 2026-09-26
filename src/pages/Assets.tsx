@@ -82,7 +82,7 @@ export default function Assets() {
 
       {!assets.length ? (
         <div className="card">
-          <Empty icon={<Coins />} title="No assets yet" action={<QuickAdd onPick={openNew} />}>
+          <Empty icon={<Coins />} title="No assets yet" action={<QuickAdd onPick={openNew} center />}>
             Add fixed deposits, mutual funds (with live NAVs), your stock portfolio value, PPF/EPF/NPS, gold, property or anything else.
           </Empty>
         </div>
@@ -239,9 +239,9 @@ function sum(list: { m: AssetMetrics }[]) {
   return list.reduce((s, r) => s + r.m.value, 0);
 }
 
-function QuickAdd({ onPick }: { onPick: (t: AssetType) => void }) {
+function QuickAdd({ onPick, center }: { onPick: (t: AssetType) => void; center?: boolean }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={center ? 'flex flex-wrap justify-center gap-2' : 'flex flex-wrap gap-2'}>
       {QUICK.map((t) => (
         <Button key={t} size="sm" icon={<Plus className="size-3.5" />} onClick={() => onPick(t)}>
           {ASSET_TYPES[t].label}

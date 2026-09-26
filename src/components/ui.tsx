@@ -171,11 +171,11 @@ export function Dot({ color, className }: { color: string; className?: string })
 
 export function Empty({ icon, title, children, action }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+    <div className="flex flex-col items-center     justify-center gap-2 px-6 py-12 text-center">
       {icon && <div className="mb-1 grid size-12 place-items-center rounded-2xl bg-surface-2 text-muted">{icon}</div>}
       <p className="font-medium">{title}</p>
       {children && <p className="max-w-md text-sm text-muted">{children}</p>}
-      {action && <div className="mt-3">{action}</div>}
+      {action && <div className="mt-3 max-w-lg">{action}</div>}
     </div>
   );
 }
