@@ -7,7 +7,7 @@ import { defaultPeriod, PeriodPicker } from '../components/PeriodPicker';
 import { TxnModal } from '../components/TxnModal';
 import { Badge, Button, Card, cx, Dot, Empty, Input, Money, PageHeader, Select, Spinner, toast } from '../components/ui';
 import { currentFY, formatDate, periodLabel } from '../lib/dates';
-import { collectionIcon } from '../lib/collections';
+import { collectionIcon, descendantIds, flattenTree } from '../lib/collections';
 import { classify, normalizeTag, type TxKind } from '../lib/transactions';
 import { usePeriod, usePeriodTxns } from '../hooks';
 import { useCatMap, useGroupTotals, useKnownFYs, useStore } from '../store';
@@ -88,6 +88,8 @@ export default function Transactions() {
   };
   const collections = useStore((s) => s.collections.collections);
   const collectionMap = useMemo(() => new Map(collections.map((b) => [b.id, b])), [collections]);
+  // A parent collection also matches transactions in its sub-collections
+  const collectionIds = useMemo(() => (collection && collection !== '__none' ? descendantIds(collection, collections) : null), [collection, collections]);
   const knownTags = useGroupTotals('tag');
   const [bulkTag, setBulkTag] = useState('');
   const [kind, setKind] = useState<TxKind | ''>((params.get('kind') as TxKind | null) ?? '');
@@ -132,7 +134,7 @@ export default function Transactions() {
       if (category === '__none' && t.category) return false;
       if (category && category !== '__none' && t.category !== category) return false;
       if (sub && (sub === '__none' ? t.subcategory : t.subcategory !== sub)) return false;
-      if (collection === '__none' ? t.collectionId : collection && t.collectionId !== collection) return false;
+      if (collection === '__none' ? t.collectionId : collectionIds && !collectionIds.has(t.collectionId ?? '')) return false;
       if (tag && !t.tags?.includes(tag)) return false;
       if (kind && classify(t, t.category ? catMap.get(t.category) : undefined) !== kind) return false;
       if (needle) {
@@ -154,7 +156,7 @@ export default function Transactions() {
       }
     });
     return list;
-  }, [txns, q, account, category, sub, collection, tag, kind, sort, catMap]);
+  }, [txns, q, account, category, sub, collection, collectionIds, tag, kind, sort, catMap]);
 
   const totals = useMemo(() => {
     let inc = 0,
@@ -256,8 +258,10 @@ export default function Transactions() {
             <Select value={collection} onChange={(e) => setParam('collection', e.target.value)} className="!w-auto">
               <option value="">All collections</option>
               <option value="__none">Not in a collection</option>
-              {collections.map((b) => (
+              {flattenTree(collections).map(({ c: b, depth }) => (
                 <option key={b.id} value={b.id}>
+                  {'\u00a0\u00a0\u00a0'.repeat(depth)}
+                  {depth ? '└ ' : ''}
                   {collectionIcon(b)} {b.name}
                 </option>
               ))}

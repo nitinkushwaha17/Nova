@@ -235,3 +235,46 @@ describe('collections & tags', () => {
     expect(m).toEqual({ spent: 1510, received: 300, count: 4, first: '2024-01-01', last: '2026-01-01' });
   });
 });
+
+import { ancestorsOf, descendantIds, flattenTree, newCollection, rollupTotals } from './collections';
+
+describe('nested collections', () => {
+  const trip = newCollection({ id: 'trip', name: 'Europe' });
+  const paris = newCollection({ id: 'paris', name: 'Paris', parentId: 'trip' });
+  const louvre = newCollection({ id: 'louvre', name: 'Louvre', parentId: 'paris' });
+  const rome = newCollection({ id: 'rome', name: 'Rome', parentId: 'trip' });
+  const orphan = newCollection({ id: 'orphan', name: 'Orphan', parentId: 'gone' });
+  const all = [louvre, rome, trip, paris, orphan];
+
+  it('walks descendants and ancestors', () => {
+    expect([...descendantIds('trip', all)].sort()).toEqual(['louvre', 'paris', 'rome', 'trip']);
+    expect([...descendantIds('rome', all)]).toEqual(['rome']);
+    expect(ancestorsOf('louvre', all).map((c) => c.id)).toEqual(['trip', 'paris']);
+    expect(ancestorsOf('orphan', all)).toEqual([]);
+  });
+
+  it('flattens depth-first, name-sorted, with dangling parents as roots', () => {
+    const flat = flattenTree(all).map((r) => `${r.depth}:${r.c.id}`);
+    expect(flat).toEqual(['0:trip', '1:paris', '2:louvre', '1:rome', '0:orphan']);
+  });
+
+  it('survives cycles', () => {
+    const a = newCollection({ id: 'a', parentId: 'b' });
+    const b = newCollection({ id: 'b', parentId: 'a' });
+    expect(flattenTree([a, b]).map((r) => r.c.id).sort()).toEqual(['a', 'b']);
+    expect([...descendantIds('a', [a, b])].sort()).toEqual(['a', 'b']);
+    expect(ancestorsOf('a', [a, b]).map((c) => c.id)).toEqual(['b']);
+  });
+
+  it('rolls totals up to every ancestor', () => {
+    const own = new Map([
+      ['louvre', { spent: 100, received: 0, count: 1, first: '2026-05-02', last: '2026-05-02' }],
+      ['rome', { spent: 300, received: 50, count: 2, first: '2026-05-05', last: '2026-05-07' }],
+      ['trip', { spent: 1000, received: 0, count: 1, first: '2026-04-20', last: '2026-04-20' }],
+    ]);
+    const r = rollupTotals(own, all);
+    expect(r.get('trip')).toEqual({ spent: 1400, received: 50, count: 4, first: '2026-04-20', last: '2026-05-07' });
+    expect(r.get('paris')).toEqual({ spent: 100, received: 0, count: 1, first: '2026-05-02', last: '2026-05-02' });
+    expect(r.has('orphan')).toBe(false);
+  });
+});

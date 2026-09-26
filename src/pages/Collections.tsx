@@ -1,10 +1,11 @@
-import { ArrowLeft, Archive, CalendarRange, Hash, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Archive, CalendarRange, ChevronRight, FolderTree, Hash, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CollectionSelect } from '../components/CollectionSelect';
 import { TxnModal } from '../components/TxnModal';
 import { axisMoney, Badge, Button, Card, ChartTooltip, cx, Dot, Empty, Field, IconButton, Input, Modal, Money, NumberInput, PageHeader, Progress, Select, Spinner, Stat, Tabs, Toggle, toast } from '../components/ui';
-import { COLLECTION_KINDS, collectionIcon, collectionStatus, newCollection, STATUS_LABEL } from '../lib/collections';
+import { ancestorsOf, childrenMap, COLLECTION_KINDS, collectionIcon, collectionStatus, descendantIds, flattenTree, newCollection, rollupTotals, STATUS_LABEL } from '../lib/collections';
 import { addDays, daysBetween, formatDate, fysBetween, monthLabel, todayISO } from '../lib/dates';
 import { PALETTE } from '../lib/defaults';
 import { classify, normalizeTag } from '../lib/transactions';
@@ -20,16 +21,22 @@ function dateSpan(b: Collection, g?: GroupTotals) {
   return { start, end, days: Math.max(1, daysBetween(start, end) + 1) };
 }
 
-function CollectionModal({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Collection }) {
-  const count = useStore((s) => s.collections.collections.length);
+function CollectionModal({ open, onClose, initial, parentId }: { open: boolean; onClose: () => void; initial?: Collection; parentId?: string }) {
+  const all = useStore((s) => s.collections.collections);
+  const count = all.length;
   const saveCollection = useStore((s) => s.saveCollection);
-  const [b, setB] = useState<Collection>(() => initial ?? newCollection({}, count));
+  const [b, setB] = useState<Collection>(() => initial ?? newCollection({ parentId }, count));
   const [prev, setPrev] = useState({ open, initial });
   if (prev.open !== open || prev.initial !== initial) {
     setPrev({ open, initial });
-    if (open) setB(initial ?? newCollection({}, count));
+    if (open) {
+      const parent = parentId ? all.find((x) => x.id === parentId) : undefined;
+      setB(initial ?? newCollection(parent ? { parentId, kind: parent.kind, color: parent.color, startDate: parent.startDate, endDate: parent.endDate } : {}, count));
+    }
   }
   const set = (p: Partial<Collection>) => setB((x) => ({ ...x, ...p }));
+  // Can't nest a collection inside itself or one of its own sub-collections
+  const notParents = useMemo(() => (initial ? descendantIds(initial.id, all) : undefined), [initial, all]);
   const valid = b.name.trim() && !(b.startDate && b.endDate && b.endDate < b.startDate);
   const save = () => {
     if (!valid) return;
@@ -41,7 +48,7 @@ function CollectionModal({ open, onClose, initial }: { open: boolean; onClose: (
     <Modal
       open={open}
       onClose={onClose}
-      title={initial ? 'Edit collection' : 'New collection'}
+      title={initial ? 'Edit collection' : parentId ? 'New sub-collection' : 'New collection'}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -59,6 +66,9 @@ function CollectionModal({ open, onClose, initial }: { open: boolean; onClose: (
             <Input value={b.emoji ?? ''} onChange={(e) => set({ emoji: [...e.target.value].slice(-2).join('') })} placeholder={COLLECTION_KINDS[b.kind].emoji} className="!w-14 text-center" title="Emoji" />
             <Input value={b.name} onChange={(e) => set({ name: e.target.value })} placeholder="Goa trip, Wedding, Home renovation…" autoFocus onKeyDown={(e) => e.key === 'Enter' && save()} />
           </div>
+        </Field>
+        <Field label="Inside" hint="Optional parent, e.g. a city inside a Europe trip. Its totals include this one." className="sm:col-span-2">
+          <CollectionSelect value={b.parentId} onChange={(id) => set({ parentId: id })} emptyLabel="None (top level)" exclude={notParents} />
         </Field>
         <Field label="Kind">
           <Select value={b.kind} onChange={(e) => set({ kind: e.target.value as CollectionKind })}>
@@ -98,7 +108,7 @@ function CollectionModal({ open, onClose, initial }: { open: boolean; onClose: (
   );
 }
 
-function CollectionCard({ b, g }: { b: Collection; g?: GroupTotals }) {
+function CollectionCard({ b, g, subs }: { b: Collection; g?: GroupTotals; subs?: Collection[] }) {
   const status = collectionStatus(b, todayISO());
   const cost = net(g);
   const span = dateSpan(b, g);
@@ -133,6 +143,17 @@ function CollectionCard({ b, g }: { b: Collection; g?: GroupTotals }) {
           )}
         </div>
       </div>
+      {subs && subs.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <FolderTree className="size-3.5 text-faint" />
+          {subs.slice(0, 4).map((s) => (
+            <Badge key={s.id} color={s.color}>
+              {collectionIcon(s)} {s.name}
+            </Badge>
+          ))}
+          {subs.length > 4 && <span className="text-[11px] text-faint">+{subs.length - 4}</span>}
+        </div>
+      )}
       {b.budget ? (
         <div className="mt-3">
           <Progress value={cost / b.budget} color={cost > b.budget ? '#fb7185' : b.color} />
@@ -224,16 +245,20 @@ function TagsCard() {
 
 function CollectionList() {
   const collections = useStore((s) => s.collections.collections);
-  const totals = useGroupTotals('collection');
+  const own = useGroupTotals('collection');
+  const totals = useMemo(() => rollupTotals(own, collections), [own, collections]);
+  const kids = useMemo(() => childrenMap(collections), [collections]);
+  const roots = useMemo(() => new Set(flattenTree(collections).filter((r) => !r.depth).map((r) => r.c.id)), [collections]);
   const [modal, setModal] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const today = todayISO();
   const order = { active: 0, upcoming: 1, open: 2, done: 3 };
   const visible = collections
-    .filter((b) => showArchived || !b.archived)
+    .filter((b) => (showArchived || !b.archived) && roots.has(b.id))
     .sort((a, b) => order[collectionStatus(a, today)] - order[collectionStatus(b, today)] || (b.startDate ?? b.createdAt).localeCompare(a.startDate ?? a.createdAt));
   const archived = collections.filter((b) => b.archived).length;
-  const totalCost = collections.reduce((s, b) => s + net(totals.get(b.id)), 0);
+  // Roots only: parents already include their sub-collections
+  const totalCost = collections.filter((b) => roots.has(b.id)).reduce((s, b) => s + net(totals.get(b.id)), 0);
 
   return (
     <>
@@ -266,7 +291,7 @@ function CollectionList() {
           </div>
           <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((b) => (
-              <CollectionCard key={b.id} b={b} g={totals.get(b.id)} />
+              <CollectionCard key={b.id} b={b} g={totals.get(b.id)} subs={(kids.get(b.id) ?? []).filter((s) => showArchived || !s.archived)} />
             ))}
           </div>
         </>
@@ -378,7 +403,21 @@ function FindTransactions({ open, onClose, collection }: { open: boolean; onClos
 
 function CollectionDetail({ id }: { id: string }) {
   const navigate = useNavigate();
-  const collection = useStore((s) => s.collections.collections.find((b) => b.id === id));
+  const all = useStore((s) => s.collections.collections);
+  const collection = all.find((b) => b.id === id);
+  const ownTotals = useGroupTotals('collection');
+  const totals = useMemo(() => rollupTotals(ownTotals, all), [ownTotals, all]);
+  const children = useMemo(() => childrenMap(all).get(id) ?? [], [all, id]);
+  const ancestors = useMemo(() => ancestorsOf(id, all), [all, id]);
+  const ids = useMemo(() => descendantIds(id, all), [all, id]);
+  // Maps every nested collection id to the direct child of this one it rolls up into
+  const childOf = useMemo(() => {
+    const m = new Map<string, Collection>();
+    for (const ch of children) for (const d of descendantIds(ch.id, all)) m.set(d, ch);
+    return m;
+  }, [children, all]);
+  const byId = useMemo(() => new Map(all.map((b) => [b.id, b])), [all]);
+  const [subModal, setSubModal] = useState(false);
   const summaries = useStore((s) => s.summaries);
   const txByFY = useStore((s) => s.txByFY);
   const ensureFYs = useStore((s) => s.ensureFYs);
@@ -390,10 +429,10 @@ function CollectionDetail({ id }: { id: string }) {
   const [editOpen, setEditOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [txnModal, setTxnModal] = useState<{ open: boolean; t?: Transaction }>({ open: false });
-  const [breakdown, setBreakdown] = useState<'category' | 'tag'>('category');
+  const [breakdown, setBreakdown] = useState<'category' | 'tag' | 'sub'>('category');
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- summaries changes when this collection's FYs change
-  const fys = useMemo(() => fysWith('collection', id), [id, summaries, fysWith]);
+  const fys = useMemo(() => [...new Set([...ids].flatMap((i) => fysWith('collection', i)))].sort(), [ids, summaries, fysWith]);
   useEffect(() => {
     void ensureFYs(fys);
   }, [fys, ensureFYs]);
@@ -402,9 +441,9 @@ function CollectionDetail({ id }: { id: string }) {
     () =>
       fys
         .flatMap((f) => txByFY[f] ?? [])
-        .filter((t) => t.collectionId === id)
+        .filter((t) => t.collectionId && ids.has(t.collectionId))
         .sort((a, b) => b.date.localeCompare(a.date)),
-    [fys, txByFY, id],
+    [fys, txByFY, ids],
   );
 
   const stats = useMemo(() => {
@@ -412,6 +451,7 @@ function CollectionDetail({ id }: { id: string }) {
       received = 0;
     const byCat = new Map<string, number>();
     const byTag = new Map<string, number>();
+    const bySub = new Map<string, number>();
     const byDay = new Map<string, number>();
     for (const t of txns) {
       if (classify(t, t.category ? catMap.get(t.category) : undefined) === 'transfer') continue;
@@ -419,11 +459,13 @@ function CollectionDetail({ id }: { id: string }) {
       else received += t.amount;
       const c = t.category ?? '__none';
       byCat.set(c, (byCat.get(c) ?? 0) - t.amount);
+      const sub = childOf.get(t.collectionId!)?.id ?? '__self';
+      bySub.set(sub, (bySub.get(sub) ?? 0) - t.amount);
       for (const tg of t.tags?.length ? t.tags : ['(untagged)']) byTag.set(tg, (byTag.get(tg) ?? 0) - t.amount);
       byDay.set(t.date, (byDay.get(t.date) ?? 0) - t.amount);
     }
-    return { spent, received, net: spent - received, byCat, byTag, byDay };
-  }, [txns, catMap]);
+    return { spent, received, net: spent - received, byCat, byTag, bySub, byDay };
+  }, [txns, catMap, childOf]);
 
   const chart = useMemo(() => {
     const days = [...stats.byDay.keys()].sort();
@@ -452,14 +494,25 @@ function CollectionDetail({ id }: { id: string }) {
   const span = dateSpan(collection, g as GroupTotals | undefined);
   const status = collectionStatus(collection, todayISO());
   const accName = (aid: string) => accounts.find((a) => a.id === aid)?.name ?? '—';
-  const rows = (breakdown === 'category' ? [...stats.byCat.entries()] : [...stats.byTag.entries()]).filter(([, v]) => Math.abs(v) >= 1).sort((a, b) => b[1] - a[1]);
+  const tab = breakdown === 'sub' && !children.length ? 'category' : breakdown;
+  const rows = [...(tab === 'category' ? stats.byCat : tab === 'tag' ? stats.byTag : stats.bySub).entries()].filter(([, v]) => Math.abs(v) >= 1).sort((a, b) => b[1] - a[1]);
   const maxRow = Math.max(1, ...rows.map(([, v]) => Math.abs(v)));
 
   return (
     <>
-      <Link to="/collections" className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
-        <ArrowLeft className="size-4" /> All collections
-      </Link>
+      <nav className="mb-3 flex flex-wrap items-center gap-1.5 text-sm text-muted">
+        <Link to="/collections" className="inline-flex items-center gap-1.5 hover:text-fg">
+          <ArrowLeft className="size-4" /> All collections
+        </Link>
+        {ancestors.map((a) => (
+          <span key={a.id} className="flex items-center gap-1.5">
+            <ChevronRight className="size-3.5 text-faint" />
+            <Link to={`/collections/${a.id}`} className="hover:text-fg">
+              {collectionIcon(a)} {a.name}
+            </Link>
+          </span>
+        ))}
+      </nav>
       <PageHeader
         title={
           <span className="flex items-center gap-3">
@@ -479,6 +532,9 @@ function CollectionDetail({ id }: { id: string }) {
         }
         actions={
           <>
+            <Button icon={<FolderTree className="size-4" />} onClick={() => setSubModal(true)}>
+              Add sub-collection
+            </Button>
             <Button icon={<Search className="size-4" />} onClick={() => setFindOpen(true)}>
               Find transactions
             </Button>
@@ -488,10 +544,12 @@ function CollectionDetail({ id }: { id: string }) {
             <IconButton
               title="Delete collection"
               onClick={async () => {
-                if (!window.confirm(`Delete "${collection.name}"? Its ${txns.length} transactions stay, just without a collection.`)) return;
+                const own = txns.filter((t) => t.collectionId === collection.id).length;
+                const moveTo = ancestors.length ? ancestors[ancestors.length - 1].name : 'the top level';
+                if (!window.confirm(`Delete "${collection.name}"? Its ${own} transactions stay, just without a collection.${children.length ? ` Its ${children.length} sub-collection${children.length === 1 ? '' : 's'} move to ${moveTo}.` : ''}`)) return;
                 await deleteCollection(collection.id);
                 toast('Collection deleted');
-                navigate('/collections');
+                navigate(ancestors.length ? `/collections/${ancestors[ancestors.length - 1].id}` : '/collections');
               }}
             >
               <Trash2 className="size-4" />
@@ -522,6 +580,20 @@ function CollectionDetail({ id }: { id: string }) {
           <Stat label="Per day" value={<Money value={span ? stats.net / span.days : 0} />} sub={span ? `over ${span.days} days` : 'set dates for a daily rate'} />
         )}
       </div>
+
+      {children.length > 0 && (
+        <div className="mb-4">
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-medium text-muted">
+            <FolderTree className="size-4" /> Sub-collections
+            <span className="text-xs text-faint">· included in the totals above</span>
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {children.map((ch) => (
+              <CollectionCard key={ch.id} b={ch} g={totals.get(ch.id)} subs={childrenMap(all).get(ch.id)} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading && !txns.length ? (
         <div className="grid h-40 place-items-center">
@@ -567,24 +639,27 @@ function CollectionDetail({ id }: { id: string }) {
               className="lg:col-span-2"
               action={
                 <Tabs
-                  value={breakdown}
+                  value={tab}
                   onChange={setBreakdown}
                   options={[
                     { value: 'category', label: 'Category' },
                     { value: 'tag', label: 'Tag' },
+                    ...(children.length ? [{ value: 'sub' as const, label: 'Sub-collection' }] : []),
                   ]}
                 />
               }
             >
               <ul className="space-y-2.5">
                 {rows.map(([k, v]) => {
-                  const cat = breakdown === 'category' ? catMap.get(k) : undefined;
-                  const color = breakdown === 'category' ? (cat?.color ?? '#94a3b8') : collection.color;
+                  const cat = tab === 'category' ? catMap.get(k) : undefined;
+                  const subC = tab === 'sub' ? byId.get(k) : undefined;
+                  const color = tab === 'category' ? (cat?.color ?? '#94a3b8') : (subC?.color ?? collection.color);
+                  const label = tab === 'category' ? (cat?.name ?? 'Uncategorised') : tab === 'tag' ? k : subC ? `${collectionIcon(subC)} ${subC.name}` : `Directly in ${collection.name}`;
                   return (
                     <li key={k}>
                       <div className="mb-1 flex items-center gap-2 text-sm">
-                        {breakdown === 'category' ? <Dot color={color} /> : <Hash className="size-3.5 text-faint" />}
-                        <span className="flex-1 truncate">{breakdown === 'category' ? (cat?.name ?? 'Uncategorised') : k}</span>
+                        {tab === 'tag' ? <Hash className="size-3.5 text-faint" /> : <Dot color={color} />}
+                        <span className="flex-1 truncate">{label}</span>
                         <span className="text-xs text-faint">{stats.spent > 0 && v > 0 ? `${Math.round((v / stats.spent) * 100)}%` : ''}</span>
                         <Money value={v} className={cx('w-24 text-right font-medium', v < 0 && 'text-pos')} />
                       </div>
@@ -595,7 +670,7 @@ function CollectionDetail({ id }: { id: string }) {
                   );
                 })}
               </ul>
-              {breakdown === 'tag' && <p className="mt-3 text-[11px] text-faint">A transaction with several tags counts under each of them.</p>}
+              {tab === 'tag' && <p className="mt-3 text-[11px] text-faint">A transaction with several tags counts under each of them.</p>}
             </Card>
           </div>
 
@@ -613,6 +688,11 @@ function CollectionDetail({ id }: { id: string }) {
                         </button>
                         <div className="flex items-center gap-1.5 truncate text-[11px] text-faint">
                           {accName(t.accountId)}
+                          {t.collectionId !== collection.id && byId.get(t.collectionId!) && (
+                            <Badge color={byId.get(t.collectionId!)!.color}>
+                              {collectionIcon(byId.get(t.collectionId!)!)} {byId.get(t.collectionId!)!.name}
+                            </Badge>
+                          )}
                           {t.notes && <span>· {t.notes}</span>}
                           {t.tags?.map((tg) => (
                             <Badge key={tg}>#{tg}</Badge>
@@ -643,6 +723,7 @@ function CollectionDetail({ id }: { id: string }) {
       )}
 
       <CollectionModal open={editOpen} onClose={() => setEditOpen(false)} initial={collection} />
+      <CollectionModal open={subModal} onClose={() => setSubModal(false)} parentId={collection.id} />
       <FindTransactions open={findOpen} onClose={() => setFindOpen(false)} collection={collection} />
       <TxnModal
         open={txnModal.open}

@@ -8,7 +8,7 @@ A private, local-first finance app for tracking your whole financial life in Ind
 | --- | --- |
 | **Import** | CSV / TSV / XLS / XLSX / ODS statements from any bank, with auto-detected columns and a manual mapping fallback. Duplicate detection, transfer detection, and a per-account balance trail. Also imports backups from the old Bank-statement-analyser. |
 | **Transactions** | Search, filters, and single or bulk categorisation. Rules auto-categorise new imports and can be re-applied to history. |
-| **Collections & tags** | A collection groups spending for one thing (a trip, wedding or renovation) across categories, with dates, a budget, net cost after reimbursements, daily spend and a category/tag breakdown. "Find transactions" pulls unassigned spends from the collection's dates. Tags are free-form labels (e.g. `#reimbursable`, `#work`). A transaction can carry many tags but belongs to at most one collection. Both work alongside categories. |
+| **Collections & tags** | A collection groups spending for one thing (a trip, wedding or renovation) across categories, with dates, a budget, net cost after reimbursements, daily spend and a category/tag breakdown. "Find transactions" pulls unassigned spends from the collection's dates. Tags are free-form labels (e.g. `#reimbursable`, `#work`). A transaction can carry many tags but belongs to at most one collection. Both work alongside categories. Collections can nest (Europe trip → Paris → Louvre day): a parent's totals, transactions and Transactions-page filter include everything beneath it, and deleting a collection moves its sub-collections up a level. |
 | **Profiles** | Separate datasets for you, a spouse, parents or a business, each with its own accounts, transactions, assets and taxes. Switch from the sidebar. |
 | **Categories & rules** | Editable categories and subcategories (expense / income / investment / transfer), plus regex or "contains" rules. |
 | **Analytics** | Any period: income, spending, investments and savings rate. Category donut with drill-down, top merchants, recurring payments, largest expenses, income sources, and GST paid by category. |
@@ -71,7 +71,7 @@ The data is split into small JSON files, so Nova only downloads what a screen ne
 | `networth.json` | Monthly net worth snapshots | at startup |
 | `planning.json` | Budgets, goals, insurance, emergency-fund settings | at startup |
 | `cpi.json` | Your inflation table | at startup |
-| `collections.json` | Collections (name, kind, dates, budget). Transactions reference them by `collectionId`; per-collection and per-tag totals live in `summaries.json`. | at startup |
+| `collections.json` | Collections (name, kind, dates, budget, optional `parentId`). Transactions reference them by `collectionId`; per-collection and per-tag totals live in `summaries.json`. | at startup |
 | `transactions__FY2025-26.json` | All transactions of one financial year (one file per FY) | when a screen needs that FY |
 | `tax__FY2025-26.json` | Income, deductions and tax payments of one FY | when you open that FY's taxes |
 

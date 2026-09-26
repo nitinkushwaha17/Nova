@@ -425,7 +425,12 @@ export const useStore = create<State>((set, get) => {
         const list = get().txByFY[fy] ?? [];
         if (list.some((t) => t.collectionId === id)) saveFY(fy, list.map((t) => (t.collectionId === id ? { ...t, collectionId: null } : t)));
       }
-      get().update('collections', (d) => ({ collections: d.collections.filter((b) => b.id !== id) }));
+      get().update('collections', (d) => {
+        const gone = d.collections.find((b) => b.id === id);
+        return {
+          collections: d.collections.filter((b) => b.id !== id).map((b) => (b.parentId === id ? { ...b, parentId: gone?.parentId ?? null } : b)),
+        };
+      });
     },
 
     async renameTag(from, to) {

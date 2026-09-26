@@ -66,4 +66,17 @@ describe('store', () => {
     expect(after.txByFY['2025-26'].some((x) => x.id === t.id)).toBe(false);
     expect(after.txByFY['2024-25'].some((x) => x.id === t.id)).toBe(true);
   });
+
+  it('promotes sub-collections to the parent when a collection is deleted', async () => {
+    const { useStore } = await import('./index');
+    const { newCollection } = await import('../lib/collections');
+    const st = useStore.getState();
+    st.saveCollection(newCollection({ id: 'eu', name: 'Europe' }));
+    st.saveCollection(newCollection({ id: 'fr', name: 'France', parentId: 'eu' }));
+    st.saveCollection(newCollection({ id: 'paris', name: 'Paris', parentId: 'fr' }));
+    await useStore.getState().deleteCollection('fr');
+    const cols = useStore.getState().collections.collections;
+    expect(cols.some((c) => c.id === 'fr')).toBe(false);
+    expect(cols.find((c) => c.id === 'paris')?.parentId).toBe('eu');
+  });
 });

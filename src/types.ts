@@ -141,6 +141,8 @@ export interface Collection {
   budget?: number;
   notes?: string;
   archived?: boolean;
+  /** Parent collection, e.g. "Paris" inside "Europe 2026". Totals roll up to ancestors. */
+  parentId?: ID | null;
   createdAt: string;
 }
 
