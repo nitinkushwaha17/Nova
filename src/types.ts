@@ -209,6 +209,8 @@ export interface Asset {
   /** Contributions / withdrawals (not used for FD/RD, which are derived) */
   flows: CashFlow[];
   createdAt: string;
+  /** Source identity for assets synced from statements (e.g. an SBI FD number), used to update them on re-import */
+  ref?: string;
 }
 
 export interface PortfolioDoc {
