@@ -30,8 +30,10 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useStore } from '../store';
 import { useAutoSnapshot } from '../hooks';
 import { reauthorize, syncNow, useSync } from '../sync/engine';
+import { hasValidToken, isConnected, isLocalOnly, resumeSkipped } from '../sync/google';
 import { ProfileSwitcher } from './Profiles';
 import { cx, IconButton, Spinner, toast } from './ui';
+import { Welcome } from './Welcome';
 
 const NAV: { group: string; items: { to: string; label: string; icon: ReactNode }[] }[] = [
   {
@@ -144,6 +146,19 @@ export function Layout() {
   }, [settings.theme]);
   useEffect(() => setOpen(false), [loc.pathname]);
 
+  const status = useSync((s) => s.status);
+  const [, rerender] = useState(0);
+  const connected = isConnected();
+  const gate: 'welcome' | 'resume' | null =
+    !connected && !isLocalOnly() ? 'welcome' : connected && !resumeSkipped() && (ready ? status === 'needs-auth' : !hasValidToken()) ? 'resume' : null;
+  if (gate && !ready)
+    return (
+      <div className="grid h-screen place-items-center">
+        <Spinner className="size-6" />
+      </div>
+    );
+  if (gate) return <Welcome mode={gate} onDone={() => rerender((n) => n + 1)} />;
+
   return (
     <div className="flex min-h-full">
       <aside
@@ -186,7 +201,9 @@ export function Layout() {
         <div className="border-t border-line p-3">
           <NavLink
             to="/settings"
-            className={({ isActive }) => cx('flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm [&_svg]:size-4', isActive ? 'bg-accent/12 text-fg' : 'text-muted hover:bg-surface-2 hover:text-fg')}
+            className={({ isActive }) =>
+              cx('flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm [&_svg]:size-4', isActive ? 'bg-accent/12 text-fg' : 'text-muted hover:bg-surface-2 hover:text-fg')
+            }
           >
             <Settings /> Settings & sync
           </NavLink>

@@ -4,7 +4,7 @@ import { allFiles, getFile, getSyncMeta, putFile, setSyncMeta } from '../storage
 import { CORE_FILES, driveName, manifestName, PROFILES_FILE, SCHEMA_VERSION } from '../storage/files';
 import { drivePrefixFor, mergeProfiles, useProfiles, type Profile } from '../storage/profiles';
 import * as drive from './drive';
-import { getClientId, hasValidToken, isConnected, NeedsAuthError, signIn, signOut } from './google';
+import { getClientId, hasValidToken, isConnected, NeedsAuthError, setLocalOnly, signIn, signOut } from './google';
 
 export type SyncStatus = 'unconfigured' | 'disconnected' | 'needs-auth' | 'idle' | 'syncing' | 'error' | 'offline';
 
@@ -266,6 +266,8 @@ export async function reauthorize() {
 
 export function disconnect() {
   signOut();
+  // A deliberate disconnect means "keep using Nova locally", not "show the sign-in screen again"
+  setLocalOnly(true);
   idCache = null;
   set({ status: 'disconnected', conflicts: [], error: undefined });
 }

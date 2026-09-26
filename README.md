@@ -50,9 +50,11 @@ Nova uses the Drive **appDataFolder** scope (`drive.appdata`). This is a hidden,
 5. Give Nova the client ID in one of two ways:
    - Put it in `.env.local` as `VITE_GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com`, or
    - Paste it in **Settings → Google OAuth Client ID** (stored only in this browser).
-6. Click **Connect Google Drive** in Settings.
+6. Click **Sign in with Google** on Nova's welcome screen, or **Connect Google Drive** in Settings if you chose "Continue without syncing" earlier.
 
-Google access tokens last about an hour. When one expires, Nova keeps working locally and shows a "Reconnect" button. Nothing is lost; pending changes upload after you reconnect.
+The Client ID isn't a secret: it tells Google which app is asking, which origins may use it, and what to show on the consent screen. Nova has no backend, so it has to come from your own Cloud project. Putting it in `.env.local` means the welcome screen goes straight to Google sign-in.
+
+Google access tokens last about an hour and aren't kept after the tab closes. When you next open Nova, a "Welcome back" screen offers **Continue as you@gmail.com** (one click), or **Use offline for now**. Offline, Nova keeps working locally and the header shows a "Reconnect" button. Nothing is lost; pending changes upload after you sign in.
 
 ## How data is stored
 

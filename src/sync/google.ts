@@ -52,6 +52,17 @@ export function setClientId(id: string) {
   client = null;
 }
 export const isConnected = () => localStorage.getItem(LS_CONNECTED) === '1';
+
+// Welcome screen choices: "use without syncing" is remembered; "offline for now" lasts for this tab only
+const LS_LOCAL_ONLY = 'nova.localOnly';
+const SS_SKIP_RESUME = 'nova.skipResume';
+export const isLocalOnly = () => localStorage.getItem(LS_LOCAL_ONLY) === '1';
+export function setLocalOnly(on: boolean) {
+  if (on) localStorage.setItem(LS_LOCAL_ONLY, '1');
+  else localStorage.removeItem(LS_LOCAL_ONLY);
+}
+export const resumeSkipped = () => sessionStorage.getItem(SS_SKIP_RESUME) === '1';
+export const skipResume = () => sessionStorage.setItem(SS_SKIP_RESUME, '1');
 export const connectedEmail = () => localStorage.getItem(LS_EMAIL) || '';
 
 let scriptPromise: Promise<void> | null = null;
@@ -138,6 +149,7 @@ export async function getToken(interactive: boolean, forceConsent = false): Prom
 export async function signIn(): Promise<string> {
   const t = await getToken(true, !isConnected());
   localStorage.setItem(LS_CONNECTED, '1');
+  setLocalOnly(false);
   try {
     const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${t}` } });
     if (r.ok) {
