@@ -1,6 +1,7 @@
 import { Cloud, FileLock2, HardDrive, WifiOff } from 'lucide-react';
 import { useState } from 'react';
 import { connect, refreshConfigStatus } from '../sync/engine';
+import { isNative } from '../platform';
 import { connectedEmail, getClientId, setClientId, setLocalOnly, skipResume } from '../sync/google';
 import { Button, Input, toast } from './ui';
 
@@ -90,7 +91,11 @@ export function Welcome({ mode, onDone }: { mode: 'welcome' | 'resume'; onDone: 
         )}
 
         <div className="mt-7 space-y-3">
-          {hasClient ? (
+          {isNative ? (
+            <p className="rounded-xl border border-line bg-surface-2/50 p-3 text-xs text-muted">
+              Google Drive sync in the mobile app needs native Google sign-in, which is coming next. For now the app works offline on this phone.
+            </p>
+          ) : hasClient ? (
             <Button variant="primary" className="w-full justify-center" loading={busy} icon={<GoogleG />} onClick={signIn}>
               {mode === 'resume' && email ? `Continue as ${email}` : 'Sign in with Google'}
             </Button>

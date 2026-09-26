@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { setStatusBarTheme } from '../platform';
 import { useStore } from '../store';
 import { useAutoSnapshot } from '../hooks';
 import { reauthorize, syncNow, useSync } from '../sync/engine';
@@ -143,6 +144,7 @@ export function Layout() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', settings.theme === 'dark' ? '#090c15' : '#f5f6fb');
+    setStatusBarTheme(settings.theme);
   }, [settings.theme]);
   useEffect(() => setOpen(false), [loc.pathname]);
 
@@ -163,7 +165,7 @@ export function Layout() {
     <div className="flex min-h-full">
       <aside
         className={cx(
-          'fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-bg/80 backdrop-blur-xl transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-bg/80 backdrop-blur-xl transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 pt-safe pb-safe',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -212,7 +214,7 @@ export function Layout() {
       {open && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setOpen(false)} />}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-bg/70 px-4 backdrop-blur-xl sm:px-6">
+        <header className="sticky top-0 z-20 box-content flex h-14 items-center pt-safe gap-2 border-b border-line bg-bg/70 px-4 backdrop-blur-xl sm:px-6">
           <IconButton title="Menu" className="lg:hidden" onClick={() => setOpen(true)}>
             <Menu className="size-5" />
           </IconButton>
@@ -225,7 +227,7 @@ export function Layout() {
             {settings.theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </IconButton>
         </header>
-        <main key={settings.privacy ? 'p' : 'np'} className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
+        <main key={settings.privacy ? 'p' : 'np'} className="mx-auto w-full max-w-7xl flex-1 px-4 pt-6 pb-safe-6 sm:px-6">
           {ready ? (
             <Outlet />
           ) : (

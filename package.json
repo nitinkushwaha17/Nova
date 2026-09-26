@@ -8,9 +8,16 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "android": "node scripts/android.mjs open",
+    "android:run": "node scripts/android.mjs run",
+    "android:apk": "node scripts/android.mjs apk",
+    "cap:sync": "node scripts/android.mjs sync"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@noble/hashes": "^2.4.0",
     "clsx": "^2.1.1",
     "idb": "^8.0.3",
@@ -24,6 +31,8 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",

@@ -1,5 +1,7 @@
 /* Google Identity Services (token model) — browser-only OAuth, no backend. */
 
+import { isNative } from '../platform';
+
 interface TokenResponse {
   access_token: string;
   expires_in: number;
@@ -132,6 +134,11 @@ export function hasValidToken() {
   return !!token && token.expiresAt > Date.now();
 }
 
+// Google blocks its web sign-in inside app WebViews, so the mobile app needs native sign-in instead
+function assertWebSignIn() {
+  if (isNative) throw new Error("Google sign-in isn't available in the mobile app yet.");
+}
+
 /**
  * Get an access token. Interactive requests open Google's popup and must be triggered by a user
  * gesture; non-interactive calls throw NeedsAuthError when the token has expired.
@@ -139,6 +146,7 @@ export function hasValidToken() {
 export async function getToken(interactive: boolean, forceConsent = false): Promise<string> {
   if (token && token.expiresAt > Date.now() && !forceConsent) return token.value;
   if (!interactive) throw new NeedsAuthError();
+  assertWebSignIn();
   const c = await getClient();
   return new Promise<string>((resolve, reject) => {
     pending = { resolve, reject };
@@ -188,6 +196,7 @@ export const dropGmailToken = () => void (gmailToken = null);
 /** Must be called from a click handler the first time (opens Google's consent popup) */
 export async function getGmailToken(): Promise<string> {
   if (gmailToken && gmailToken.expiresAt > Date.now()) return gmailToken.value;
+  assertWebSignIn();
   const id = getClientId();
   if (!id) throw new Error('Google OAuth Client ID is not configured (Settings → Cloud sync).');
   await loadScript();
