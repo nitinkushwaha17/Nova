@@ -2,6 +2,7 @@ import { AlertTriangle, Cloud, CloudOff, Database, Download, Eye, EyeOff, FileJs
 import { useEffect, useRef, useState } from 'react';
 import { AccountModal } from '../components/AccountModal';
 import { ProfilesCard } from '../components/Profiles';
+import { SmsCard } from '../components/SmsCard';
 import { Badge, Button, Card, Field, IconButton, Input, Modal, PageHeader, Select, Tabs, toast } from '../components/ui';
 import { uid } from '../lib/format';
 import { convertLegacy, isLegacyBackup } from '../lib/parsers/legacy';
@@ -453,6 +454,7 @@ export default function Settings() {
         <div className="space-y-5">
           <ProfilesCard />
           <PasswordsCard />
+          <SmsCard />
           <StorageCard />
         </div>
       </div>

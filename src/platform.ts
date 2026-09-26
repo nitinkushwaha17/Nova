@@ -16,8 +16,15 @@ export function initNative() {
   });
 }
 
-/** Light status-bar icons on the dark theme, dark icons on the light theme. */
+/** Status-bar icons that stay readable: follow the theme when the app draws behind the bars, else light on the dark window background */
 export function setStatusBarTheme(theme: 'dark' | 'light') {
   if (!isNative) return;
-  void StatusBar.setStyle({ style: theme === 'dark' ? Style.Dark : Style.Light }).catch(() => {});
+  const apply = () => {
+    // Capacitor reports a 0 inset when it pads the WebView below the bars instead (older WebViews)
+    const edgeToEdge = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top') || '0') > 0;
+    void StatusBar.setStyle({ style: theme === 'light' && edgeToEdge ? Style.Light : Style.Dark }).catch(() => {});
+  };
+  apply();
+  // Insets are injected shortly after load
+  setTimeout(apply, 1500);
 }

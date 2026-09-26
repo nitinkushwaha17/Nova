@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardPaste, FileSpreadsheet, Landmark, LockKeyhole, Plus, RotateCcw, Upload } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardPaste, FileSpreadsheet, Landmark, LockKeyhole, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AccountModal } from '../components/AccountModal';
@@ -64,6 +64,9 @@ export default function Import() {
   const [loading, setLoading] = useState(false);
   const [drag, setDrag] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
+  // Unconfirmed SMS entries the last statement import didn't contain
+  const [pendingSms, setPendingSms] = useState<string[]>([]);
+  const deleteTransactions = useStore((s) => s.deleteTransactions);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   // Password-protected file waiting for a password. Saved passwords (Settings) are tried first; the last
@@ -192,9 +195,10 @@ export default function Import() {
       const res = await importTransactions(parsed.transactions.map((t) => ({ ...t, accountId: account.id })));
       saveAccount({ ...account, columnMapping: mapping, last4: account.last4 || sbi?.st.accounts[sbi.accountIndex]?.last4 });
       setResult(res);
+      setPendingSms(res.smsUnmatched);
       setRows(null);
       markGmailImported();
-      toast(`Imported ${res.added} transactions`);
+      toast(res.merged ? `Imported ${res.added} transactions, confirmed ${res.merged} from SMS` : `Imported ${res.added} transactions`);
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
@@ -506,7 +510,35 @@ export default function Import() {
                   <Badge color="#a78bfa">{result.categorized} auto-categorised</Badge>
                   <Badge color="#22d3ee">{result.transfers} self-transfers detected</Badge>
                   <Badge>FY {result.fys.join(', ')}</Badge>
+                  {result.merged > 0 && <Badge color="#34d399">{result.merged} SMS entries confirmed</Badge>}
                 </div>
+                {pendingSms.length > 0 && (
+                  <div className="mt-2 w-full max-w-md rounded-xl border border-warn/30 bg-warn/5 p-3 text-left text-sm">
+                    <p className="font-medium">
+                      {pendingSms.length} SMS entr{pendingSms.length === 1 ? 'y is' : 'ies are'} not in this statement
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      They fall within the statement's dates but the bank didn't list them, so they may be failed or reversed payments, or duplicate alerts. The statement is the
+                      source of truth.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Link to="/transactions?sms=1">
+                        <Button>Review</Button>
+                      </Link>
+                      <Button
+                        variant="danger"
+                        icon={<Trash2 className="size-4" />}
+                        onClick={() => {
+                          deleteTransactions(pendingSms);
+                          setPendingSms([]);
+                          toast(`Removed ${pendingSms.length} unconfirmed SMS entries`, 'info');
+                        }}
+                      >
+                        Delete them
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-3 flex gap-2">
                   <Link to="/transactions?uncategorized=1">
                     <Button variant="primary" icon={<ArrowRight className="size-4" />}>

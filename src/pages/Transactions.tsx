@@ -20,7 +20,11 @@ const KIND_COLOR: Record<TxKind, string> = { expense: '#fb7185', income: '#34d39
 function toCSV(txns: Transaction[], accName: (id: string) => string, catName: (id?: string | null) => string) {
   const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const head = ['Date', 'Account', 'Description', 'Amount', 'Balance', 'Category', 'Subcategory', 'Notes', 'Tags', 'Reference'];
-  const lines = txns.map((t) => [t.date, accName(t.accountId), t.description, t.amount, t.balance ?? '', catName(t.category), t.subcategory ?? '', t.notes ?? '', (t.tags ?? []).join(' '), t.reference ?? ''].map(esc).join(','));
+  const lines = txns.map((t) =>
+    [t.date, accName(t.accountId), t.description, t.amount, t.balance ?? '', catName(t.category), t.subcategory ?? '', t.notes ?? '', (t.tags ?? []).join(' '), t.reference ?? '']
+      .map(esc)
+      .join(','),
+  );
   return [head.join(','), ...lines].join('\n');
 }
 
@@ -80,7 +84,7 @@ export default function Transactions() {
   };
   const collection = params.get('collection') ?? '';
   const tag = params.get('tag') ?? '';
-  const setParam = (key: 'collection' | 'tag' | 'sub', v: string) => {
+  const setParam = (key: 'collection' | 'tag' | 'sub' | 'sms', v: string) => {
     const p = new URLSearchParams(params);
     if (v) p.set(key, v);
     else p.delete(key);
@@ -114,10 +118,18 @@ export default function Transactions() {
   if (sub) activeFilters.push({ key: 'sub', label: 'Subcategory', value: sub === '__none' ? 'None' : sub, clear: () => setParam('sub', '') });
   if (collection) {
     const c = collectionMap.get(collection);
-    activeFilters.push({ key: 'collection', label: 'Collection', value: collection === '__none' ? 'Not in a collection' : c ? `${collectionIcon(c)} ${c.name}` : 'Deleted', color: c?.color, clear: () => setParam('collection', '') });
+    activeFilters.push({
+      key: 'collection',
+      label: 'Collection',
+      value: collection === '__none' ? 'Not in a collection' : c ? `${collectionIcon(c)} ${c.name}` : 'Deleted',
+      color: c?.color,
+      clear: () => setParam('collection', ''),
+    });
   }
   if (tag) activeFilters.push({ key: 'tag', label: 'Tag', value: `#${tag}`, clear: () => setParam('tag', '') });
   if (kind) activeFilters.push({ key: 'kind', label: 'Type', value: KIND_LABEL[kind], color: KIND_COLOR[kind], clear: () => setKind('') });
+  const smsOnly = params.get('sms') === '1';
+  if (smsOnly) activeFilters.push({ key: 'sms', label: 'Source', value: 'SMS, not yet in a statement', clear: () => setParam('sms', '') });
   const clearAll = () => {
     setQ('');
     setAccount('');
@@ -136,6 +148,7 @@ export default function Transactions() {
       if (sub && (sub === '__none' ? t.subcategory : t.subcategory !== sub)) return false;
       if (collection === '__none' ? t.collectionId : collectionIds && !collectionIds.has(t.collectionId ?? '')) return false;
       if (tag && !t.tags?.includes(tag)) return false;
+      if (smsOnly && t.source !== 'sms') return false;
       if (kind && classify(t, t.category ? catMap.get(t.category) : undefined) !== kind) return false;
       if (needle) {
         const hay = `${t.description} ${t.rawDescription ?? ''} ${t.notes ?? ''} ${(t.tags ?? []).join(' ')} ${t.subcategory ?? ''} ${t.reference ?? ''}`.toLowerCase();
@@ -156,7 +169,7 @@ export default function Transactions() {
       }
     });
     return list;
-  }, [txns, q, account, category, sub, collection, collectionIds, tag, kind, sort, catMap]);
+  }, [txns, q, account, category, sub, collection, collectionIds, tag, smsOnly, kind, sort, catMap]);
 
   const totals = useMemo(() => {
     let inc = 0,
@@ -300,7 +313,11 @@ export default function Transactions() {
                 {f.color && <Dot color={f.color} className="size-2" />}
                 <span className="text-muted">{f.label}:</span>
                 <span className="max-w-48 truncate font-medium">{f.value}</span>
-                <button onClick={f.clear} title={`Remove ${f.label.toLowerCase()} filter`} className="grid size-5 place-items-center rounded-md text-muted hover:bg-accent/20 hover:text-fg">
+                <button
+                  onClick={f.clear}
+                  title={`Remove ${f.label.toLowerCase()} filter`}
+                  className="grid size-5 place-items-center rounded-md text-muted hover:bg-accent/20 hover:text-fg"
+                >
                   <X className="size-3" />
                 </button>
               </span>
@@ -429,7 +446,12 @@ export default function Transactions() {
               <thead className="bg-surface-2/60 text-left text-xs text-muted">
                 <tr>
                   <th className="w-10 py-2.5 pl-4">
-                    <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(shown.map((t) => t.id)))} className="accent-violet-500" />
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={() => setSelected(allSelected ? new Set() : new Set(shown.map((t) => t.id)))}
+                      className="accent-violet-500"
+                    />
                   </th>
                   <th className="px-2 font-medium">Date</th>
                   <th className="px-2 font-medium">Description</th>
@@ -460,6 +482,11 @@ export default function Transactions() {
                         </button>
                         <div className="flex items-center gap-1.5 truncate text-[11px] text-faint">
                           {accName(t.accountId)}
+                          {t.source === 'sms' && (
+                            <span title="From an SMS alert; will be confirmed when you import the statement">
+                              <Badge color="#fbbf24">SMS</Badge>
+                            </span>
+                          )}
                           {(k === 'transfer' || k === 'refund' || k === 'investment') && <Badge color={KIND_COLOR[k]}>{KIND_LABEL[k]}</Badge>}
                           {t.collectionId && collectionMap.get(t.collectionId) && (
                             <Link to={`/collections/${t.collectionId}`}>

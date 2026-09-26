@@ -20,6 +20,8 @@ A private, local-first finance app for tracking your whole financial life in Ind
 | **Planning** | Budgets vs actuals with pacing and suggestions, inflation-aware goals linked to assets (with the SIP you need), emergency-fund coverage, and insurance with renewals and cover checks. |
 | **Calculator** | Lump sum + SIP with yearly step-up and chosen compounding, shown in nominal and real terms, plus a reverse "how much should I invest" mode. |
 | **Dashboard** | Net worth, FY cash flow vs last year, top spending, and upcoming FD maturities, premiums and advance-tax dates. |
+| **SMS alerts** (Android app) | Reads bank transaction SMS on the phone (SBI, HDFC, ICICI, Axis, Kotak and most Indian bank formats) and adds them as **SMS** entries on launch, on returning to the app, and as they arrive while it's open. Alerts are matched to accounts by the last digits of the account/card number. OTPs, reminders, requests and failed payments are ignored. Messages are parsed on the device; only the resulting transactions sync. |
+| **SMS ↔ statement reconciliation** | The statement is the source of truth. When you import it (upload, paste or Gmail), each SMS entry is paired with its statement row: same account and amount, within 3 days, preferring a matching UPI/IMPS reference. The statement's date, description and balance replace the SMS details, while your category, notes, tags and collection are kept. Rows the SMS missed are added. SMS entries inside the statement's dates that the bank didn't list are flagged, so you can review or delete them. Alerts arriving after their statement row is imported are skipped. |
 
 Privacy mode (Settings) blurs every amount on screen.
 
@@ -33,6 +35,18 @@ npm run build      # production build in dist/ (installable PWA, works offline)
 ```
 
 The app works without Google Drive. Data then stays only in this browser, so export a backup from **Settings → Backup & restore** regularly.
+
+### Android app
+
+The same codebase is wrapped with [Capacitor](https://capacitorjs.com/); the native project is in `android/`. You need Android Studio (its bundled JDK 21 is used automatically, so your own `JAVA_HOME` can be any version).
+
+```bash
+npm run android      # build, copy into android/, open Android Studio (press Run)
+npm run android:run  # build and run on a connected phone or emulator
+npm run android:apk  # debug APK → android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+To install on your phone, enable USB debugging and use `android:run`, or copy the APK over and open it. To turn on SMS import, go to **Settings → SMS alerts** and allow the SMS permission. Android's dialog says "send and view SMS", but Nova only reads. Google Play restricts apps that read SMS, so this build is meant for sideloading. Google sign-in isn't available in the app yet (Google blocks its web sign-in inside apps; native sign-in is next), so the app currently works offline.
 
 ## Google Drive setup (one time)
 
@@ -99,8 +113,9 @@ When the app starts, it reads the core files from IndexedDB, then pulls anything
 - **GST** is estimated from category-level typical rates. Other indirect taxes (fuel duty, stamp duty, customs) are not included.
 - **CPI** values are pre-filled approximations, and recent years are estimates. Edit them on the Inflation page as official data is published.
 - **Stocks** are tracked as a single aggregate value that you update manually. Mutual-fund NAVs come from [mfapi.in](https://www.mfapi.in/), which covers Indian mutual funds only.
-- PDF statements are not supported. Download the Excel/CSV version from net banking.
+- PDF statements are supported for SBI e-statements. For other banks, download the Excel/CSV version from net banking.
+- **SMS parsing** is pattern-based. Unusual formats may be skipped (never guessed); the statement import fills any gaps.
 
 ## Tech
 
-React 19, TypeScript, Vite, Tailwind CSS v4, zustand, idb, recharts, SheetJS and Vitest. Pages are lazy-loaded. A small service worker (`public/sw.js`, production only) caches the app shell for offline use.
+React 19, TypeScript, Vite, Tailwind CSS v4, zustand, idb, recharts, SheetJS and Vitest, plus Capacitor 8 for Android (with a small native `SmsInbox` plugin in `android/app/src/main/java/in/nova/finance/`). Pages are lazy-loaded. A small service worker (`public/sw.js`, production web build only) caches the app shell for offline use.

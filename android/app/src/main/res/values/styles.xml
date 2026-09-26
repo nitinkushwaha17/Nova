@@ -13,6 +13,8 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Shown behind the system bars when the WebView is too old for edge-to-edge -->
+        <item name="android:windowBackground">@color/novaBackground</item>
     </style>
 
 

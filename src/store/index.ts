@@ -31,6 +31,7 @@ import {
   DEFAULT_SUMMARIES,
 } from '../lib/defaults';
 import { currentFY, fyOf } from '../lib/dates';
+import { newSmsOnly, reconcileStatement, unmatchedSms } from '../lib/reconcile';
 import { setPrivacyMode } from '../lib/format';
 import { applyRules, dedupe, detectTransferPairs, groupByFY, mergeGroups, sortTxns, summarize } from '../lib/transactions';
 import { emptyTaxYear } from '../lib/tax';
@@ -70,6 +71,10 @@ export interface ImportResult {
   categorized: number;
   transfers: number;
   fys: FY[];
+  /** Existing SMS entries confirmed (and replaced) by statement rows */
+  merged: number;
+  /** SMS entries inside the statement's date range that the statement doesn't list */
+  smsUnmatched: string[];
 }
 
 interface State extends Docs {
@@ -168,8 +173,14 @@ export const useStore = create<State>((set, get) => {
     if (patch.settings) setPrivacyMode(patch.settings.privacy);
     const names2 = await fileNames();
     set({
-      localTxFYs: names2.filter(isTxFile).map((n) => fyFromFile(n)!).sort(),
-      localTaxFYs: names2.filter(isTaxFile).map((n) => fyFromFile(n)!).sort(),
+      localTxFYs: names2
+        .filter(isTxFile)
+        .map((n) => fyFromFile(n)!)
+        .sort(),
+      localTaxFYs: names2
+        .filter(isTaxFile)
+        .map((n) => fyFromFile(n)!)
+        .sort(),
     });
   };
 
@@ -193,8 +204,14 @@ export const useStore = create<State>((set, get) => {
       const names = await fileNames();
       set({
         ...(docs as Docs),
-        localTxFYs: names.filter(isTxFile).map((n) => fyFromFile(n)!).sort(),
-        localTaxFYs: names.filter(isTaxFile).map((n) => fyFromFile(n)!).sort(),
+        localTxFYs: names
+          .filter(isTxFile)
+          .map((n) => fyFromFile(n)!)
+          .sort(),
+        localTaxFYs: names
+          .filter(isTaxFile)
+          .map((n) => fyFromFile(n)!)
+          .sort(),
       });
       setPrivacyMode(get().settings.privacy);
       await get().ensureFYs([currentFY()]);
@@ -244,7 +261,10 @@ export const useStore = create<State>((set, get) => {
       set({
         txByFY: { ...get().txByFY, ...loaded },
         loadingFYs: get().loadingFYs.filter((f) => !missing.includes(f)),
-        localTxFYs: names.filter(isTxFile).map((n) => fyFromFile(n)!).sort(),
+        localTxFYs: names
+          .filter(isTxFile)
+          .map((n) => fyFromFile(n)!)
+          .sort(),
       });
     },
 
@@ -266,25 +286,54 @@ export const useStore = create<State>((set, get) => {
     },
 
     async importTransactions(incoming) {
+      const isSms = incoming.length > 0 && incoming.every((t) => t.source === 'sms');
+      await get().ensureFYs([...groupByFY(incoming).keys()]);
+      const loaded = Object.values(get().txByFY).flat();
+      let merged = 0;
+      let duplicates = 0;
+      const mergedTx: Transaction[] = [];
+      const removed = new Set<string>();
+      const statementRows = incoming;
+      if (isSms) {
+        const r = newSmsOnly(loaded, incoming);
+        duplicates += r.duplicates;
+        incoming = r.fresh;
+      } else {
+        // Exact re-imports are dropped first, so only genuinely new statement rows can confirm an SMS
+        const exact = new Set<string>();
+        for (const [fy, rows] of groupByFY(incoming)) for (const t of dedupe(get().txByFY[fy] ?? [], rows).dupes) exact.add(t.id);
+        const { merges, rest } = reconcileStatement(
+          loaded,
+          incoming.filter((t) => !exact.has(t.id)),
+        );
+        for (const m of merges) {
+          removed.add(m.sms.id);
+          mergedTx.push(m.merged);
+        }
+        merged = merges.length;
+        incoming = [...rest, ...incoming.filter((t) => exact.has(t.id))];
+      }
       const groups = groupByFY(incoming);
+      for (const fy of groupByFY(mergedTx).keys()) if (!groups.has(fy)) groups.set(fy, []);
+      for (const t of loaded) if (removed.has(t.id) && !groups.has(fyOf(t.date))) groups.set(fyOf(t.date), []);
       const fys = [...groups.keys()].sort();
       // Neighbouring FYs are needed to catch transfer pairs straddling 31-Mar
       await get().ensureFYs(fys);
       const { meta } = get();
       let added = 0;
-      let duplicates = 0;
       let categorized = 0;
       const allNew: Transaction[] = [];
       const perFY: Record<FY, Transaction[]> = {};
+      const mergedByFY = groupByFY(applyRules(mergedTx, meta.rules).txns);
       for (const fy of fys) {
-        const existing = get().txByFY[fy] ?? [];
+        const existing = (get().txByFY[fy] ?? []).filter((t) => !removed.has(t.id));
         const { fresh, dupes } = dedupe(existing, groups.get(fy)!);
         duplicates += dupes.length;
         const ruled = applyRules(fresh, meta.rules);
         categorized += ruled.txns.filter((t) => t.category).length;
         added += ruled.txns.length;
         allNew.push(...ruled.txns);
-        perFY[fy] = [...existing, ...ruled.txns];
+        perFY[fy] = [...existing, ...(mergedByFY.get(fy) ?? []), ...ruled.txns];
       }
       // Self-transfer detection across all loaded + new transactions
       const pool = Object.entries(get().txByFY)
@@ -311,7 +360,8 @@ export const useStore = create<State>((set, get) => {
         }
       }
       for (const fy of touched) saveFY(fy, perFY[fy]);
-      return { added, duplicates, categorized, transfers, fys };
+      const smsUnmatched = isSms ? [] : unmatchedSms(Object.values({ ...get().txByFY, ...perFY }).flat(), statementRows).map((t) => t.id);
+      return { added, duplicates, categorized, transfers, fys, merged, smsUnmatched };
     },
 
     updateTransaction(id, patch) {
@@ -423,7 +473,11 @@ export const useStore = create<State>((set, get) => {
       await get().ensureFYs(fys);
       for (const fy of fys) {
         const list = get().txByFY[fy] ?? [];
-        if (list.some((t) => t.collectionId === id)) saveFY(fy, list.map((t) => (t.collectionId === id ? { ...t, collectionId: null } : t)));
+        if (list.some((t) => t.collectionId === id))
+          saveFY(
+            fy,
+            list.map((t) => (t.collectionId === id ? { ...t, collectionId: null } : t)),
+          );
       }
       get().update('collections', (d) => {
         const gone = d.collections.find((b) => b.id === id);

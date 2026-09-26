@@ -61,6 +61,10 @@ export interface Transaction {
   /** Auto-detected transfer (self-transfer pair / sweep) */
   autoTransfer?: boolean;
   importId?: string;
+  /** 'sms' = captured from a bank alert and not yet confirmed by a statement */
+  source?: 'sms';
+  /** Android SMS id this came from (kept after a statement confirms it, to avoid re-importing) */
+  smsId?: string;
 }
 
 export type CategoryKind = 'expense' | 'income' | 'investment' | 'transfer';
