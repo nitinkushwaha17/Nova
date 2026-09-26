@@ -154,20 +154,7 @@ export type SummariesDoc = Record<FY, FYSummary>;
 
 // ─── Portfolio ──────────────────────────────────────────────────────────────
 
-export type AssetType =
-  | 'fd'
-  | 'rd'
-  | 'mutual_fund'
-  | 'stocks'
-  | 'ppf'
-  | 'epf'
-  | 'nps'
-  | 'gold'
-  | 'bond'
-  | 'real_estate'
-  | 'crypto'
-  | 'cash'
-  | 'other';
+export type AssetType = 'fd' | 'rd' | 'mutual_fund' | 'stocks' | 'ppf' | 'epf' | 'nps' | 'gold' | 'bond' | 'real_estate' | 'crypto' | 'cash' | 'other';
 
 export interface Valuation {
   date: ISODate;
@@ -219,14 +206,7 @@ export interface PortfolioDoc {
 
 // ─── Liabilities ────────────────────────────────────────────────────────────
 
-export type LiabilityType =
-  | 'home_loan'
-  | 'car_loan'
-  | 'personal_loan'
-  | 'education_loan'
-  | 'gold_loan'
-  | 'credit_card'
-  | 'other';
+export type LiabilityType = 'home_loan' | 'car_loan' | 'personal_loan' | 'education_loan' | 'gold_loan' | 'credit_card' | 'other';
 
 export interface Liability {
   id: ID;
@@ -380,6 +360,15 @@ export interface SettingsDoc {
   displayName?: string;
   /** Hide amounts (privacy mode) */
   privacy: boolean;
+  /** Passwords tried automatically when an imported statement is encrypted */
+  statementPasswords?: StatementPassword[];
+}
+
+export interface StatementPassword {
+  id: string;
+  /** e.g. "SBI e-statement" */
+  label: string;
+  password: string;
 }
 
 // ─── Storage / sync ─────────────────────────────────────────────────────────

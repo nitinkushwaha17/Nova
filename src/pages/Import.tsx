@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AccountModal } from '../components/AccountModal';
 import { Badge, Button, Card, cx, Field, Input, Money, NumberInput, PageHeader, Select, Spinner, Tabs, toast } from '../components/ui';
 import { formatDate } from '../lib/dates';
+import { uid } from '../lib/format';
 import { PasswordError } from '../lib/parsers/officeCrypto';
 import { readPdfLines } from '../lib/parsers/pdf';
 import { accountRows, applyDepositSync, isSbiStatement, parseSbiStatement, planDepositSync, type SbiStatement } from '../lib/parsers/sbi';
@@ -60,10 +61,12 @@ export default function Import() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Password-protected file waiting for a password. The last working password is kept in memory only
-  // (never saved) so further statements from the same bank open without asking again.
-  const [locked, setLocked] = useState<{ file: File; wrong: boolean } | null>(null);
+  // Password-protected file waiting for a password. Saved passwords (Settings) are tried first; the last
+  // working one is also kept in memory for this visit.
+  const [locked, setLocked] = useState<{ file: File; wrong: boolean; triedSaved: boolean } | null>(null);
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
+  const savedPasswords = useStore((s) => s.settings.statementPasswords) ?? [];
   const lastPassword = useRef<string | undefined>(undefined);
   const account = accounts.find((a) => a.id === accountId);
 
@@ -94,41 +97,54 @@ export default function Import() {
     }
   };
 
-  const onFile = async (f: File, pw: string | undefined = lastPassword.current) => {
-    setLoading(true);
-    try {
-      if (/\.pdf$/i.test(f.name)) {
-        const lines = await readPdfLines(new Uint8Array(await f.arrayBuffer()), pw);
-        if (!isSbiStatement(lines)) {
-          toast('Only SBI e-statement PDFs can be read. For other banks, download the Excel/CSV version.', 'error');
-          return;
-        }
-        const st = parseSbiStatement(lines);
-        // Prefer the statement account matching the selected Nova account's last 4 digits
-        pickSbiAccount(
-          st,
-          Math.max(
-            0,
-            st.accounts.findIndex((a) => !!account?.last4 && a.last4 === account.last4),
-          ),
-          f.name,
-        );
-      } else {
-        setSbi(null);
-        load(await readRows(f, pw), f.name);
-      }
-      if (pw) lastPassword.current = pw;
-      setLocked(null);
-      setPassword('');
-    } catch (e) {
-      if (e instanceof PasswordError && e.reason !== 'unsupported') {
-        // A remembered password that doesn't fit this file isn't the user's mistake; just ask
-        setLocked({
-          file: f,
-          wrong: e.reason === 'wrong' && pw !== lastPassword.current,
-        });
+  const openFile = async (f: File, pw: string | undefined) => {
+    if (/\.pdf$/i.test(f.name)) {
+      const lines = await readPdfLines(new Uint8Array(await f.arrayBuffer()), pw);
+      if (!isSbiStatement(lines)) {
+        toast('Only SBI e-statement PDFs can be read. For other banks, download the Excel/CSV version.', 'error');
         return;
       }
+      const st = parseSbiStatement(lines);
+      // Prefer the statement account matching the selected Nova account's last 4 digits
+      pickSbiAccount(
+        st,
+        Math.max(
+          0,
+          st.accounts.findIndex((a) => !!account?.last4 && a.last4 === account.last4),
+        ),
+        f.name,
+      );
+    } else {
+      setSbi(null);
+      load(await readRows(f, pw), f.name);
+    }
+  };
+
+  /** `typed` is a password the user just entered; otherwise saved passwords are tried in turn */
+  const onFile = async (f: File, typed?: string) => {
+    const saved = [...new Set([lastPassword.current, ...savedPasswords.map((p) => p.password)].filter((p): p is string => !!p))];
+    const candidates: (string | undefined)[] = typed !== undefined ? [typed] : saved.length ? saved : [undefined];
+    setLoading(true);
+    try {
+      for (const pw of candidates) {
+        try {
+          await openFile(f, pw);
+          if (pw) lastPassword.current = pw;
+          if (typed && remember && !savedPasswords.some((p) => p.password === typed)) {
+            update('settings', (s) => ({ ...s, statementPasswords: [...(s.statementPasswords ?? []), { id: uid('pw'), label: f.name.replace(/\.[^.]+$/, ''), password: typed }] }));
+            toast('Password saved to Settings → Statement passwords', 'info');
+          }
+          setLocked(null);
+          setPassword('');
+          return;
+        } catch (e) {
+          if (e instanceof PasswordError && e.reason !== 'unsupported') continue;
+          throw e;
+        }
+      }
+      // Saved passwords not fitting isn't the user's mistake; only flag a password they typed
+      setLocked({ file: f, wrong: typed !== undefined, triedSaved: typed === undefined && savedPasswords.length > 0 });
+    } catch (e) {
       toast(`Could not read file: ${(e as Error).message}`, 'error');
     } finally {
       setLoading(false);
@@ -231,7 +247,7 @@ export default function Import() {
                   <LockKeyhole className="size-6 text-accent" />
                   <div>
                     <p className="text-sm font-medium break-all">{locked.file.name}</p>
-                    <p className="text-xs text-muted">is password-protected</p>
+                    <p className="text-xs text-muted">{locked.triedSaved ? 'is password-protected and none of your saved passwords opened it' : 'is password-protected'}</p>
                   </div>
                   <Input
                     type="password"
@@ -243,6 +259,10 @@ export default function Import() {
                     className={cx(locked.wrong && '!border-neg')}
                   />
                   {locked.wrong && <p className="-mt-1 text-xs text-neg">Wrong password, try again</p>}
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
+                    <input type="checkbox" className="accent-accent" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                    Remember in Settings for future statements
+                  </label>
                   <div className="flex gap-2">
                     <Button type="button" variant="ghost" size="sm" onClick={() => (setLocked(null), setPassword(''))}>
                       Cancel
@@ -251,7 +271,7 @@ export default function Import() {
                       Unlock
                     </Button>
                   </div>
-                  <p className="text-[11px] text-faint">Decrypted on this device. The password isn't stored.</p>
+                  <p className="text-[11px] text-faint">Decrypted on this device.</p>
                 </form>
               ) : (
                 <div

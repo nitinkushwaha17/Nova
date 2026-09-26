@@ -1,15 +1,16 @@
-import { AlertTriangle, Cloud, CloudOff, Database, Download, FileJson, HardDrive, LogOut, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Cloud, CloudOff, Database, Download, Eye, EyeOff, FileJson, HardDrive, KeyRound, LogOut, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { AccountModal } from '../components/AccountModal';
 import { ProfilesCard } from '../components/Profiles';
-import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Tabs, toast } from '../components/ui';
+import { Badge, Button, Card, Field, IconButton, Input, Modal, PageHeader, Select, Tabs, toast } from '../components/ui';
+import { uid } from '../lib/format';
 import { convertLegacy, isLegacyBackup } from '../lib/parsers/legacy';
 import { allFiles } from '../storage/db';
 import { CORE_FILES } from '../storage/files';
 import { useStore, type FullBackup } from '../store';
 import { connect, disconnect, refreshConfigStatus, resolveConflict, syncNow, useSync } from '../sync/engine';
 import { connectedEmail, getClientId, isConnected, setClientId } from '../sync/google';
-import type { StoredFile } from '../types';
+import type { StatementPassword, StoredFile } from '../types';
 
 const ENV_CLIENT = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
@@ -40,8 +41,8 @@ function DriveCard() {
       }
     >
       <p className="mb-4 text-sm text-muted">
-        Data is stored as JSON files in your Drive's hidden <b>app data folder</b> — private to Nova, not visible in your Drive file list and not accessible to other apps. Only
-        the files a page needs are downloaded (settings and summaries always; transactions and tax data per financial year on demand).
+        Data is stored as JSON files in your Drive's hidden <b>app data folder</b> — private to Nova, not visible in your Drive file list and not accessible to other apps. Only the
+        files a page needs are downloaded (settings and summaries always; transactions and tax data per financial year on demand).
       </p>
       {!ENV_CLIENT && (
         <Field label="Google OAuth Client ID" hint="Create a Web OAuth client in Google Cloud Console (see README). Stored only in this browser." className="mb-4">
@@ -332,6 +333,63 @@ function BackupCard() {
   );
 }
 
+function PasswordsCard() {
+  const saved = useStore((s) => s.settings.statementPasswords) ?? [];
+  const update = useStore((s) => s.update);
+  const [label, setLabel] = useState('');
+  const [pw, setPw] = useState('');
+  const [shown, setShown] = useState<string | null>(null);
+  const save = (list: StatementPassword[]) => update('settings', (s) => ({ ...s, statementPasswords: list }));
+  return (
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          <KeyRound className="size-4" /> Statement passwords
+        </span>
+      }
+    >
+      <p className="mb-4 text-sm text-muted">
+        Tried automatically when you import a password-protected PDF or Excel statement. If none of them work, you're asked for the password. They sync with your data to your
+        private Drive app folder and are included in JSON backups.
+      </p>
+      {saved.length > 0 && (
+        <ul className="mb-4 divide-y divide-line rounded-xl border border-line">
+          {saved.map((p) => (
+            <li key={p.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate font-medium">{p.label || 'Untitled'}</span>
+              <code className="text-xs text-muted">{shown === p.id ? p.password : '•'.repeat(Math.min(12, p.password.length))}</code>
+              <IconButton title={shown === p.id ? 'Hide' : 'Show'} onClick={() => setShown(shown === p.id ? null : p.id)}>
+                {shown === p.id ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </IconButton>
+              <IconButton title="Remove" onClick={() => save(saved.filter((x) => x.id !== p.id))}>
+                <Trash2 className="size-4" />
+              </IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex flex-wrap gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!pw) return;
+          if (saved.some((p) => p.password === pw)) return toast('That password is already saved', 'info');
+          save([...saved, { id: uid('pw'), label: label.trim(), password: pw }]);
+          setLabel('');
+          setPw('');
+          toast('Password saved');
+        }}
+      >
+        <Input className="min-w-32 flex-1" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label, e.g. SBI e-statement" />
+        <Input className="min-w-32 flex-1" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Password" />
+        <Button type="submit" icon={<Plus className="size-4" />} disabled={!pw}>
+          Add
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
 function PreferencesCard() {
   const settings = useStore((s) => s.settings);
   const update = useStore((s) => s.update);
@@ -394,6 +452,7 @@ export default function Settings() {
         </div>
         <div className="space-y-5">
           <ProfilesCard />
+          <PasswordsCard />
           <StorageCard />
         </div>
       </div>
