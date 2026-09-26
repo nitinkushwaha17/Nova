@@ -2,6 +2,8 @@ import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardPaste, FileSpreadshee
 import { useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AccountModal } from '../components/AccountModal';
+import { GmailImport } from '../components/GmailImport';
+import { DEFAULT_GMAIL_QUERY } from '../sync/gmail';
 import { Badge, Button, Card, cx, Field, Input, Money, NumberInput, PageHeader, Select, Spinner, Tabs, toast } from '../components/ui';
 import { formatDate } from '../lib/dates';
 import { uid } from '../lib/format';
@@ -50,7 +52,10 @@ export default function Import() {
   const [sbi, setSbi] = useState<{ st: SbiStatement; accountIndex: number } | null>(null);
   const [accountId, setAccountId] = useState(params.get('account') ?? accounts[0]?.id ?? '');
   const [newAcc, setNewAcc] = useState(false);
-  const [source, setSource] = useState<'file' | 'paste'>('file');
+  const [source, setSource] = useState<'file' | 'paste' | 'gmail'>('file');
+  const settings = useStore((s) => s.settings);
+  // `${messageId}:${filename}` of the statement opened from Gmail, marked imported once used
+  const [gmailKey, setGmailKey] = useState<string | null>(null);
   const [pasted, setPasted] = useState('');
   const [fileName, setFileName] = useState('');
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -170,6 +175,16 @@ export default function Import() {
     };
   }, [parsed]);
 
+  const pickFile = (f: File) => {
+    setGmailKey(null);
+    void onFile(f);
+  };
+
+  const markGmailImported = () => {
+    const key = gmailKey;
+    if (key) update('settings', (s) => ({ ...s, gmailImported: [...new Set([...(s.gmailImported ?? []), key])].slice(-500) }));
+  };
+
   const doImport = async () => {
     if (!parsed || !account || !mapping) return;
     setImporting(true);
@@ -178,6 +193,7 @@ export default function Import() {
       saveAccount({ ...account, columnMapping: mapping, last4: account.last4 || sbi?.st.accounts[sbi.accountIndex]?.last4 });
       setResult(res);
       setRows(null);
+      markGmailImported();
       toast(`Imported ${res.added} transactions`);
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -190,6 +206,7 @@ export default function Import() {
   const syncDeposits = () => {
     if (!fdPlan) return;
     update('portfolio', (d) => ({ assets: applyDepositSync(d.assets, fdPlan) }));
+    markGmailImported();
     toast(`Fixed deposits synced: ${fdPlan.add.length} added, ${fdPlan.update.length} updated, ${fdPlan.close.length} closed`);
   };
 
@@ -233,82 +250,81 @@ export default function Import() {
               options={[
                 { value: 'file', label: 'Upload file' },
                 { value: 'paste', label: 'Paste text' },
+                { value: 'gmail', label: 'Gmail' },
               ]}
             />
-            {source === 'file' ? (
-              locked ? (
-                <form
-                  className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-accent/50 bg-accent/5 px-4 py-6 text-center"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (password) void onFile(locked.file, password);
-                  }}
-                >
-                  <LockKeyhole className="size-6 text-accent" />
-                  <div>
-                    <p className="text-sm font-medium break-all">{locked.file.name}</p>
-                    <p className="text-xs text-muted">{locked.triedSaved ? 'is password-protected and none of your saved passwords opened it' : 'is password-protected'}</p>
-                  </div>
-                  <Input
-                    type="password"
-                    autoFocus
-                    autoComplete="off"
-                    value={password}
-                    onChange={(e) => (setPassword(e.target.value), locked.wrong && setLocked({ ...locked, wrong: false }))}
-                    placeholder="File password"
-                    className={cx(locked.wrong && '!border-neg')}
-                  />
-                  {locked.wrong && <p className="-mt-1 text-xs text-neg">Wrong password, try again</p>}
-                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
-                    <input type="checkbox" className="accent-accent" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-                    Remember in Settings for future statements
-                  </label>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="ghost" size="sm" onClick={() => (setLocked(null), setPassword(''))}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="primary" size="sm" loading={loading} disabled={!password}>
-                      Unlock
-                    </Button>
-                  </div>
-                  <p className="text-[11px] text-faint">Decrypted on this device.</p>
-                </form>
-              ) : (
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDrag(true);
-                  }}
-                  onDragLeave={() => setDrag(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDrag(false);
-                    const f = e.dataTransfer.files[0];
-                    if (f) void onFile(f);
-                  }}
-                  onClick={() => fileRef.current?.click()}
-                  className={cx(
-                    'flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition',
-                    drag ? 'border-accent bg-accent/5' : 'border-line hover:border-accent/50',
-                  )}
-                >
-                  {loading ? <Spinner className="size-6" /> : <Upload className="size-6 text-accent" />}
-                  <p className="text-sm font-medium">{fileName && rows ? fileName : 'Drop a statement or click to browse'}</p>
-                  <p className="text-xs text-muted">.csv .tsv .txt .xls .xlsx · SBI e-statement .pdf</p>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    hidden
-                    accept=".csv,.tsv,.txt,.xls,.xlsx,.xlsm,.ods,.pdf"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      e.target.value = '';
-                      if (f) void onFile(f);
-                    }}
-                  />
+            {locked ? (
+              <form
+                className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-accent/50 bg-accent/5 px-4 py-6 text-center"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (password) void onFile(locked.file, password);
+                }}
+              >
+                <LockKeyhole className="size-6 text-accent" />
+                <div>
+                  <p className="text-sm font-medium break-all">{locked.file.name}</p>
+                  <p className="text-xs text-muted">{locked.triedSaved ? 'is password-protected and none of your saved passwords opened it' : 'is password-protected'}</p>
                 </div>
-              )
-            ) : (
+                <Input
+                  type="password"
+                  autoFocus
+                  autoComplete="off"
+                  value={password}
+                  onChange={(e) => (setPassword(e.target.value), locked.wrong && setLocked({ ...locked, wrong: false }))}
+                  placeholder="File password"
+                  className={cx(locked.wrong && '!border-neg')}
+                />
+                {locked.wrong && <p className="-mt-1 text-xs text-neg">Wrong password, try again</p>}
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
+                  <input type="checkbox" className="accent-accent" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                  Remember in Settings for future statements
+                </label>
+                <div className="flex gap-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => (setLocked(null), setPassword(''))}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" size="sm" loading={loading} disabled={!password}>
+                    Unlock
+                  </Button>
+                </div>
+                <p className="text-[11px] text-faint">Decrypted on this device.</p>
+              </form>
+            ) : source === 'file' ? (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDrag(true);
+                }}
+                onDragLeave={() => setDrag(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDrag(false);
+                  const f = e.dataTransfer.files[0];
+                  if (f) pickFile(f);
+                }}
+                onClick={() => fileRef.current?.click()}
+                className={cx(
+                  'flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition',
+                  drag ? 'border-accent bg-accent/5' : 'border-line hover:border-accent/50',
+                )}
+              >
+                {loading ? <Spinner className="size-6" /> : <Upload className="size-6 text-accent" />}
+                <p className="text-sm font-medium">{fileName && rows ? fileName : 'Drop a statement or click to browse'}</p>
+                <p className="text-xs text-muted">.csv .tsv .txt .xls .xlsx · SBI e-statement .pdf</p>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  hidden
+                  accept=".csv,.tsv,.txt,.xls,.xlsx,.xlsm,.ods,.pdf"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) pickFile(f);
+                  }}
+                />
+              </div>
+            ) : source === 'paste' ? (
               <div className="space-y-2">
                 <textarea
                   className="input h-40 font-mono text-xs"
@@ -329,6 +345,17 @@ export default function Import() {
                   Read pasted rows
                 </Button>
               </div>
+            ) : (
+              <GmailImport
+                query={settings.gmailQuery || DEFAULT_GMAIL_QUERY}
+                onQuery={(q) => update('settings', (s) => ({ ...s, gmailQuery: q === DEFAULT_GMAIL_QUERY ? undefined : q }))}
+                imported={settings.gmailImported ?? []}
+                current={gmailKey}
+                onOpen={async (file, key) => {
+                  setGmailKey(key);
+                  await onFile(file);
+                }}
+              />
             )}
           </Card>
 

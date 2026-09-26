@@ -172,3 +172,47 @@ export function signOut() {
 export function invalidateToken() {
   setToken(null);
 }
+
+// ─── Gmail (read-only, requested separately and only when the user fetches statements) ─────────
+
+export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+let gmailClient: TokenClient | null = null;
+let gmailClientId = '';
+// Memory only: Gmail access is never persisted, not even for the tab session
+let gmailToken: { value: string; expiresAt: number } | null = null;
+let gmailPending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null;
+
+export const hasGmailToken = () => !!gmailToken && gmailToken.expiresAt > Date.now();
+export const dropGmailToken = () => void (gmailToken = null);
+
+/** Must be called from a click handler the first time (opens Google's consent popup) */
+export async function getGmailToken(): Promise<string> {
+  if (gmailToken && gmailToken.expiresAt > Date.now()) return gmailToken.value;
+  const id = getClientId();
+  if (!id) throw new Error('Google OAuth Client ID is not configured (Settings → Cloud sync).');
+  await loadScript();
+  if (!gmailClient || gmailClientId !== id) {
+    gmailClientId = id;
+    gmailClient = window.google!.accounts.oauth2.initTokenClient({
+      client_id: id,
+      scope: GMAIL_SCOPE,
+      callback: (r) => {
+        const p = gmailPending;
+        gmailPending = null;
+        if (r.error || !r.access_token) return p?.reject(new Error(r.error_description || r.error || 'Gmail access was not granted'));
+        gmailToken = { value: r.access_token, expiresAt: Date.now() + (r.expires_in - 60) * 1000 };
+        p?.resolve(r.access_token);
+      },
+      error_callback: (e) => {
+        const p = gmailPending;
+        gmailPending = null;
+        p?.reject(new Error(e.type === 'popup_closed' ? 'Sign-in window closed' : e.message || e.type));
+      },
+    });
+  }
+  const c = gmailClient;
+  return new Promise<string>((resolve, reject) => {
+    gmailPending = { resolve, reject };
+    c.requestAccessToken({ prompt: '', login_hint: connectedEmail() || undefined });
+  });
+}

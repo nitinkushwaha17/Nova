@@ -362,6 +362,10 @@ export interface SettingsDoc {
   privacy: boolean;
   /** Passwords tried automatically when an imported statement is encrypted */
   statementPasswords?: StatementPassword[];
+  /** Gmail search used by "Import → From Gmail" */
+  gmailQuery?: string;
+  /** Gmail attachments already imported, as `${messageId}:${filename}` */
+  gmailImported?: string[];
 }
 
 export interface StatementPassword {
