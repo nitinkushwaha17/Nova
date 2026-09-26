@@ -1,6 +1,7 @@
 import type { ColumnMapping, ISODate, Transaction } from '../../types';
 import { parseAmount, uid } from '../format';
 import { cleanDescription } from '../transactions';
+import { decryptOOXML, isEncryptedOOXML, PasswordError } from './officeCrypto';
 
 export type Row = string[];
 
@@ -55,11 +56,22 @@ export function detectDelimiter(text: string): string {
   return counts[0][1] > 0 ? counts[0][0] : ',';
 }
 
-export async function readRows(file: File): Promise<Row[]> {
+export async function readRows(file: File, password?: string): Promise<Row[]> {
   const name = file.name.toLowerCase();
   if (/\.(xlsx|xls|xlsm|ods)$/.test(name)) {
     const XLSX = await import('xlsx');
-    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+    let data: Uint8Array = new Uint8Array(await file.arrayBuffer());
+    // Encrypted .xlsx files are OLE containers; SheetJS can't open them, so decrypt first
+    if (isEncryptedOOXML(data, XLSX.CFB)) data = await decryptOOXML(data, password, XLSX.CFB);
+    let wb: import('xlsx').WorkBook;
+    try {
+      wb = XLSX.read(data, { type: 'array', cellDates: false, password });
+    } catch (e) {
+      // Legacy .xls: SheetJS handles XOR-obfuscated files when given the password, but not RC4
+      if (/password/i.test((e as Error).message))
+        throw new PasswordError(password ? 'unsupported' : 'required', password ? 'This .xls uses encryption that can’t be opened in the browser. Open it in Excel and save as .xlsx (the password can stay).' : 'This file is password-protected');
+      throw e;
+    }
     // Pick the sheet with most rows
     let best: Row[] = [];
     for (const sn of wb.SheetNames) {
