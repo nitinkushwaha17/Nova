@@ -53,7 +53,7 @@ In the app, Google sign-in goes through Google Play services instead of the web 
 keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android
 ```
 
-Each machine (and a release key) has its own SHA-1; add one Android client per SHA-1. Without a matching client, sign-in fails with "developer console is not set up correctly" (error 10).
+Each machine (and a release key) has its own SHA-1; add one Android client per SHA-1. Without a matching client, sign-in fails with "developer console is not set up correctly" (error 10). The Android client ID itself isn't used in code: Google matches the app by package and SHA-1. Nova's is `167718968754-2lca7efsp1t3u1dc6622ui2to4t8916q.apps.googleusercontent.com`.
 
 ## Google sign-in
 
