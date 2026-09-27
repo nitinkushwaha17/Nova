@@ -516,11 +516,17 @@ function CollectionDetail({ id }: { id: string }) {
       <PageHeader
         title={
           <span className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-xl text-xl" style={{ background: `${collection.color}22` }}>
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl text-xl" style={{ background: `${collection.color}22` }}>
               {collectionIcon(collection)}
             </span>
-            {collection.name}
-            {collection.archived ? <Badge>Archived</Badge> : <Badge color={STATUS_LABEL[status].color}>{STATUS_LABEL[status].label}</Badge>}
+            <span className="min-w-0 break-words">{collection.name}</span>
+            {collection.archived ? (
+              <Badge className="shrink-0">Archived</Badge>
+            ) : (
+              <Badge className="shrink-0" color={STATUS_LABEL[status].color}>
+                {STATUS_LABEL[status].label}
+              </Badge>
+            )}
           </span>
         }
         subtitle={
@@ -561,7 +567,7 @@ function CollectionDetail({ id }: { id: string }) {
         }
       />
 
-      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat label="Net cost" value={<Money value={stats.net} />} sub={`${txns.length} transactions`} tone="accent" />
         <Stat label="Spent" value={<Money value={stats.spent} />} tone="neg" />
         <Stat label="Paid back / refunds" value={<Money value={stats.received} />} sub="reduces net cost" tone="pos" />
@@ -674,20 +680,21 @@ function CollectionDetail({ id }: { id: string }) {
             </Card>
           </div>
 
-          <Card pad={false} title={<span className="px-4 pt-4">Transactions</span>} className="overflow-hidden">
+          <Card pad={false} title="Transactions" className="overflow-hidden">
             <table className="mt-2 w-full text-sm">
               <tbody>
                 {txns.map((t) => {
                   const cat = t.category ? catMap.get(t.category) : undefined;
                   return (
                     <tr key={t.id} className="group border-t border-line hover:bg-surface-2/50">
-                      <td className="w-24 py-2 pl-4 text-xs whitespace-nowrap text-muted tabular">{formatDate(t.date)}</td>
-                      <td className="max-w-0 px-2">
+                      <td className="hidden w-24 py-2 pl-4 text-xs whitespace-nowrap text-muted tabular sm:table-cell">{formatDate(t.date)}</td>
+                      <td className="w-full max-w-0 py-2 pr-2 pl-4 sm:pl-2">
                         <button className="block w-full truncate text-left hover:text-accent" onClick={() => setTxnModal({ open: true, t })}>
                           {t.description}
                         </button>
                         <div className="flex items-center gap-1.5 truncate text-[11px] text-faint">
-                          {accName(t.accountId)}
+                          <span className="shrink-0 tabular sm:hidden">{formatDate(t.date)} ·</span>
+                          <span className="truncate">{accName(t.accountId)}</span>
                           {t.collectionId !== collection.id && byId.get(t.collectionId!) && (
                             <Badge color={byId.get(t.collectionId!)!.color}>
                               {collectionIcon(byId.get(t.collectionId!)!)} {byId.get(t.collectionId!)!.name}
@@ -709,7 +716,11 @@ function CollectionDetail({ id }: { id: string }) {
                         <Money value={t.amount} sign className={t.amount > 0 ? 'text-pos' : ''} />
                       </td>
                       <td className="w-10 pr-2">
-                        <IconButton title="Remove from collection" className="opacity-0 group-hover:opacity-100" onClick={() => updateTransactions([t.id], { collectionId: null })}>
+                        <IconButton
+                          title="Remove from collection"
+                          className="sm:opacity-0 sm:group-hover:opacity-100"
+                          onClick={() => updateTransactions([t.id], { collectionId: null })}
+                        >
                           <X className="size-3.5" />
                         </IconButton>
                       </td>

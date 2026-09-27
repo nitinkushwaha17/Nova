@@ -246,11 +246,11 @@ export default function Transactions() {
       <Card className="mb-4 !p-3">
         <div className="flex flex-wrap items-center gap-2">
           <PeriodPicker value={period} onChange={setPeriod} fys={fys} />
-          <div className="relative min-w-48 flex-1">
+          <div className="relative w-full min-w-48 sm:w-auto sm:flex-1">
             <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-faint" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search description, notes, tags or amount" className="!pl-8" />
           </div>
-          <Select value={account} onChange={(e) => setAccount(e.target.value)} className="!w-auto">
+          <Select value={account} onChange={(e) => setAccount(e.target.value)} className="min-w-0 basis-[calc(50%-0.25rem)] sm:!w-auto sm:basis-auto">
             <option value="">All accounts</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -258,7 +258,7 @@ export default function Transactions() {
               </option>
             ))}
           </Select>
-          <Select value={category} onChange={(e) => setCategory(e.target.value)} className="!w-auto">
+          <Select value={category} onChange={(e) => setCategory(e.target.value)} className="min-w-0 basis-[calc(50%-0.25rem)] sm:!w-auto sm:basis-auto">
             <option value="">All categories</option>
             <option value="__none">Uncategorised</option>
             {[...catMap.values()].map((c) => (
@@ -268,7 +268,7 @@ export default function Transactions() {
             ))}
           </Select>
           {collections.length > 0 && (
-            <Select value={collection} onChange={(e) => setParam('collection', e.target.value)} className="!w-auto">
+            <Select value={collection} onChange={(e) => setParam('collection', e.target.value)} className="min-w-0 basis-[calc(50%-0.25rem)] sm:!w-auto sm:basis-auto">
               <option value="">All collections</option>
               <option value="__none">Not in a collection</option>
               {flattenTree(collections).map(({ c: b, depth }) => (
@@ -281,7 +281,7 @@ export default function Transactions() {
             </Select>
           )}
           {(knownTags.size > 0 || tag) && (
-            <Select value={tag} onChange={(e) => setParam('tag', e.target.value)} className="!w-auto">
+            <Select value={tag} onChange={(e) => setParam('tag', e.target.value)} className="min-w-0 basis-[calc(50%-0.25rem)] sm:!w-auto sm:basis-auto">
               <option value="">All tags</option>
               {[...new Set([...knownTags.keys(), ...(tag ? [tag] : [])])].sort().map((t) => (
                 <option key={t} value={t}>
@@ -290,7 +290,7 @@ export default function Transactions() {
               ))}
             </Select>
           )}
-          <Select value={kind} onChange={(e) => setKind(e.target.value as TxKind | '')} className="!w-auto">
+          <Select value={kind} onChange={(e) => setKind(e.target.value as TxKind | '')} className="min-w-0 basis-[calc(50%-0.25rem)] sm:!w-auto sm:basis-auto">
             <option value="">All types</option>
             {Object.entries(KIND_LABEL).map(([k, v]) => (
               <option key={k} value={k}>
@@ -298,7 +298,7 @@ export default function Transactions() {
               </option>
             ))}
           </Select>
-          <Select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="!w-auto">
+          <Select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="min-w-0 basis-[calc(50%-0.25rem)] sm:!w-auto sm:basis-auto">
             <option value="date-desc">Newest first</option>
             <option value="date-asc">Oldest first</option>
             <option value="amount-desc">Largest first</option>
@@ -347,7 +347,7 @@ export default function Transactions() {
       {selected.size > 0 && (
         <div className="card animate-in sticky top-16 z-10 mb-3 flex flex-wrap items-center gap-2 !border-accent/40 px-3 py-2">
           <span className="text-sm font-medium">{selected.size} selected</span>
-          <div className="w-64">
+          <div className="w-full sm:w-64">
             <CategorySelect
               compact
               placeholder="Set category…"
@@ -364,7 +364,7 @@ export default function Transactions() {
           <Button size="sm" onClick={() => (updateTransactions(ids, { isTransfer: false, autoTransfer: false }), setSelected(new Set()))}>
             Not transfer
           </Button>
-          <div className="w-44">
+          <div className="w-full sm:w-44">
             <CollectionSelect
               emptyLabel="Move to collection…"
               className="!h-8 text-xs"
@@ -442,7 +442,65 @@ export default function Transactions() {
           </Empty>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <ul className="divide-y divide-line md:hidden">
+              <li className="flex items-center gap-3 bg-surface-2/60 px-4 py-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={() => setSelected(allSelected ? new Set() : new Set(shown.map((t) => t.id)))}
+                  className="accent-violet-500"
+                />
+                Select all
+              </li>
+              {shown.map((t) => {
+                const cat = t.category ? catMap.get(t.category) : undefined;
+                const k = classify(t, cat);
+                const col = t.collectionId ? collectionMap.get(t.collectionId) : undefined;
+                return (
+                  <li key={t.id} className={cx('flex gap-3 px-4 py-3', selected.has(t.id) && 'bg-accent/5')}>
+                    <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} className="mt-1 shrink-0 accent-violet-500" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <button
+                          className="min-w-0 truncate text-left text-sm font-medium hover:text-accent"
+                          title={t.rawDescription ?? t.description}
+                          onClick={() => {
+                            setEdit(t);
+                            setModal(true);
+                          }}
+                        >
+                          {t.description}
+                        </button>
+                        <Money value={t.amount} sign className={cx('shrink-0 text-sm font-semibold', t.amount > 0 ? 'text-pos' : k === 'transfer' ? 'text-muted' : '')} />
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] text-faint tabular">
+                        {formatDate(t.date)} · {accName(t.accountId)}
+                        {t.notes && ` · ${t.notes}`}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <div className="max-w-full min-w-0">
+                          <CategoryCell t={t} color={cat?.color} name={cat?.name} onChange={(c, s) => updateTransactions([t.id], { category: c, subcategory: s })} />
+                        </div>
+                        {(k === 'transfer' || k === 'refund' || k === 'investment') && <Badge color={KIND_COLOR[k]}>{KIND_LABEL[k]}</Badge>}
+                        {col && (
+                          <Link to={`/collections/${t.collectionId}`} className="max-w-full min-w-0">
+                            <Badge color={col.color}>
+                              {collectionIcon(col)} {col.name}
+                            </Badge>
+                          </Link>
+                        )}
+                        {t.tags?.map((tg) => (
+                          <button key={tg} onClick={() => setParam('tag', tg)} className="max-w-full min-w-0">
+                            <Badge>#{tg}</Badge>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <table className="hidden w-full text-sm md:table">
               <thead className="bg-surface-2/60 text-left text-xs text-muted">
                 <tr>
                   <th className="w-10 py-2.5 pl-4">

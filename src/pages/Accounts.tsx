@@ -47,10 +47,16 @@ export default function Accounts() {
         </div>
       ) : (
         <>
-          <div className="mb-5 grid gap-4 sm:grid-cols-3">
+          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
             <Stat label="Cash in banks & wallets" value={<Money value={bankTotal} />} icon={<Landmark className="size-4" />} />
             <Stat label="Credit card dues" value={<Money value={cardTotal} />} icon={<CreditCard className="size-4" />} tone="neg" />
-            <Stat label="Accounts" value={accounts.length} sub={`${accounts.filter((a) => a.columnMapping).length} with a saved statement format`} icon={<Wallet className="size-4" />} />
+            <Stat
+              label="Accounts"
+              className="col-span-2 sm:col-span-1"
+              value={accounts.length}
+              sub={`${accounts.filter((a) => a.columnMapping).length} with a saved statement format`}
+              icon={<Wallet className="size-4" />}
+            />
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {accounts.map((a) => {

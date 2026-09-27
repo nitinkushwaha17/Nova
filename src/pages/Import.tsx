@@ -573,7 +573,7 @@ export default function Import() {
           ) : (
             <>
               {stats && (
-                <div className="grid gap-4 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
                   <div className="card p-4">
                     <div className="text-xs text-muted">Transactions</div>
                     <div className="mt-1 text-lg font-semibold">{stats.count}</div>

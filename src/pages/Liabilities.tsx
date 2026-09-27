@@ -69,7 +69,7 @@ export default function Liabilities() {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
             <Stat label="Total outstanding" value={<Money value={total} />} icon={<Landmark className="size-4" />} tone="neg" />
             <Stat label="Monthly EMIs" value={<Money value={monthlyEmi} />} />
             <Stat label="Interest still to pay" value={<Money value={interestLeft} />} sub="At current schedules" className="col-span-2 lg:col-span-1" />
@@ -148,10 +148,10 @@ function LoanCard({ l, onEdit }: { l: Liability; onEdit: () => void }) {
   return (
     <Card className={l.closed ? 'opacity-60' : ''}>
       <div className="flex flex-wrap items-start gap-4">
-        <button className="min-w-48 flex-1 text-left" onClick={onEdit}>
-          <div className="flex items-center gap-2">
+        <button className="min-w-0 flex-1 basis-48 text-left" onClick={onEdit}>
+          <div className="flex flex-wrap items-center gap-2">
             <Dot color={LIABILITY_TYPES[l.type].color} />
-            <span className="font-medium">{l.name}</span>
+            <span className="min-w-0 font-medium">{l.name}</span>
             <Badge>{LIABILITY_TYPES[l.type].label}</Badge>
             {l.closed && <Badge color="#34d399">Closed</Badge>}
           </div>

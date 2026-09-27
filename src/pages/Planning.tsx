@@ -101,9 +101,9 @@ function Budgets() {
       <Card
         className="mt-4"
         title={
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 whitespace-nowrap">
             Budgets for
-            <Select value={month} onChange={(e) => setMonth(e.target.value)} className="h-8 w-auto">
+            <Select value={month} onChange={(e) => setMonth(e.target.value)} className="!h-8 !w-auto !py-0 text-sm">
               {months.map((m) => (
                 <option key={m} value={m}>
                   {monthLabel(m, 'long')}

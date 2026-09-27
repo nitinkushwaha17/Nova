@@ -12,9 +12,9 @@ export const cx = clsx;
 
 export function Card({ className, children, title, action, pad = true }: { className?: string; children: ReactNode; title?: ReactNode; action?: ReactNode; pad?: boolean }) {
   return (
-    <section className={cx('card animate-in', pad && 'p-5', className)}>
+    <section className={cx('card animate-in', pad && 'p-4 sm:p-5', className)}>
       {(title || action) && (
-        <header className={cx('mb-4 flex items-center justify-between gap-3', !pad && 'px-5 pt-5')}>
+        <header className={cx('mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2', !pad && 'px-4 pt-4 sm:px-5 sm:pt-5')}>
           {title && <h3 className="text-sm font-semibold tracking-wide text-muted">{title}</h3>}
           {action}
         </header>
@@ -26,9 +26,9 @@ export function Card({ className, children, title, action, pad = true }: { class
 
 export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6 sm:gap-4">
+      <div className="min-w-0">
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -157,7 +157,11 @@ export function Tabs<T extends string>({ value, onChange, options, className }: 
 export function Badge({ children, color, className }: { children: ReactNode; color?: string; className?: string }) {
   return (
     <span
-      className={cx('inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap', !color && 'bg-surface-2 text-muted', className)}
+      className={cx(
+        'inline-flex max-w-full items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap',
+        !color && 'bg-surface-2 text-muted',
+        className,
+      )}
       style={color ? { background: `${color}22`, color } : undefined}
     >
       {children}
@@ -220,11 +224,15 @@ export function Stat({
   const cls = cx('card animate-in block p-4', to && 'transition hover:border-accent/50', className);
   const body = (
     <>
-      <div className="flex items-center justify-between text-xs font-medium text-muted">
-        {label}
-        {icon && <span className={cx('grid size-7 place-items-center rounded-lg bg-surface-2', tone === 'pos' ? 'text-pos' : tone === 'neg' ? 'text-neg' : 'text-accent')}>{icon}</span>}
+      <div className="flex items-start justify-between gap-2 text-xs font-medium text-muted">
+        <span className="min-w-0 leading-snug">{label}</span>
+        {icon && (
+          <span className={cx('grid size-7 shrink-0 place-items-center rounded-lg bg-surface-2', tone === 'pos' ? 'text-pos' : tone === 'neg' ? 'text-neg' : 'text-accent')}>
+            {icon}
+          </span>
+        )}
       </div>
-      <div className="mt-2 text-xl font-semibold tracking-tight tabular">{value}</div>
+      <div className="mt-2 truncate text-lg font-semibold tracking-tight tabular sm:text-xl">{value}</div>
       {sub && <div className="mt-1 text-xs text-muted">{sub}</div>}
     </>
   );
@@ -258,16 +266,20 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
   }, [open, onClose]);
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={cx('card animate-in w-full !bg-bg/95', wide ? 'max-w-4xl' : 'max-w-lg')}>
-        <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
-          <h2 className="font-semibold">{title}</h2>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/50 backdrop-blur-sm sm:items-center sm:p-4"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      {/* Bottom sheet on phones, centred dialog from sm up */}
+      <div className={cx('card animate-in w-full !rounded-b-none !bg-bg/95 pb-safe sm:!rounded-b-2xl sm:pb-0', wide ? 'sm:max-w-4xl' : 'sm:max-w-lg')}>
+        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3.5 sm:px-5">
+          <h2 className="min-w-0 truncate font-semibold">{title}</h2>
           <IconButton title="Close" onClick={onClose}>
             <X className="size-4" />
           </IconButton>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-line px-5 py-3">{footer}</div>}
+        <div className="max-h-[75vh] overflow-y-auto px-4 py-4 sm:max-h-[70vh] sm:px-5">{children}</div>
+        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3 sm:px-5">{footer}</div>}
       </div>
     </div>,
     document.body,
@@ -293,7 +305,7 @@ export function toast(text: string, tone: Toast['tone'] = 'success') {
 export function Toaster() {
   const list = useToasts((s) => s.list);
   return (
-    <div className="pointer-events-none fixed right-4 bottom-4 z-[60] flex flex-col gap-2">
+    <div className="pointer-events-none fixed right-4 bottom-4 left-4 z-[60] flex flex-col items-end gap-2 pb-safe sm:left-auto">
       {list.map((t) => (
         <div
           key={t.id}

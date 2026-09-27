@@ -91,6 +91,8 @@ body {
 }
 
 .card {
+  /* Grid/flex items default to min-width:auto, so a wide table or chart would stretch the page on phones */
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 1rem;

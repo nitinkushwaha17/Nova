@@ -71,7 +71,7 @@ export default function NetWorth() {
         }
       />
       <div className="space-y-5">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Stat label="Net worth" value={<Money value={nw.netWorth} />} icon={<Scale className="size-4" />} tone="accent" />
           <Stat label="Assets" value={<Money value={nw.assets} />} sub={`${pct(nw.bank / (nw.assets || 1))} in bank accounts`} icon={<TrendingUp className="size-4" />} tone="pos" />
           <Stat label="Liabilities" value={<Money value={nw.liabilities} />} sub={`Debt-to-assets ${pct(nw.assets ? nw.liabilities / nw.assets : 0)}`} icon={<Landmark className="size-4" />} tone="neg" />
@@ -178,9 +178,9 @@ export default function NetWorth() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-surface text-[11px] text-muted uppercase">
                   <tr className="border-b border-line">
-                    <th className="px-5 py-2 text-left font-medium">Month</th>
-                    <th className="px-3 py-2 text-right font-medium">Assets</th>
-                    <th className="px-3 py-2 text-right font-medium">Liabilities</th>
+                    <th className="py-2 pr-2 pl-4 text-left font-medium sm:px-5">Month</th>
+                    <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Assets</th>
+                    <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Liabilities</th>
                     <th className="px-3 py-2 text-right font-medium">Net worth</th>
                     <th className="px-3 py-2 text-right font-medium">Change</th>
                     <th className="w-12" />
@@ -191,10 +191,16 @@ export default function NetWorth() {
                     const prev = arr[i + 1];
                     return (
                       <tr key={s.month} className="border-b border-line/60 last:border-0">
-                        <td className="px-5 py-2">{monthLabel(s.month, 'long')}</td>
-                        <td className="px-3 py-2 text-right"><Money value={s.assets} /></td>
-                        <td className="px-3 py-2 text-right"><Money value={s.liabilities} /></td>
-                        <td className="px-3 py-2 text-right font-medium"><Money value={s.netWorth} /></td>
+                        <td className="py-2 pr-2 pl-4 whitespace-nowrap sm:px-5">{monthLabel(s.month, 'long')}</td>
+                        <td className="hidden px-3 py-2 text-right sm:table-cell">
+                          <Money value={s.assets} />
+                        </td>
+                        <td className="hidden px-3 py-2 text-right sm:table-cell">
+                          <Money value={s.liabilities} />
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium whitespace-nowrap">
+                          <Money value={s.netWorth} />
+                        </td>
                         <td className="px-3 py-2 text-right">{prev ? <Money value={s.netWorth - prev.netWorth} sign colored short /> : '—'}</td>
                         <td className="px-2">
                           <IconButton

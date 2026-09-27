@@ -90,7 +90,7 @@ export default function Analytics() {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
             <Stat label="Income" value={<Money value={a.income} />} icon={<ArrowDownRight className="size-4" />} tone="pos" />
             <Stat label="Spending" value={<Money value={a.expense} />} sub={a.refunds ? <>incl. <Money value={a.refunds} /> refunds</> : undefined} icon={<ArrowUpRight className="size-4" />} tone="neg" />
             <Stat label="Invested" value={<Money value={a.investment} />} sub={a.income ? `${pct(a.investment / a.income)} of income` : undefined} icon={<PiggyBank className="size-4" />} />

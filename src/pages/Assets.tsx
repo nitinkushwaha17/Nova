@@ -181,7 +181,7 @@ export default function Assets() {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <Stat label="Current value" value={<Money value={totals.value} />} icon={<Coins className="size-4" />} tone="accent" />
             <Stat label="Invested" value={<Money value={totals.invested} />} />
             <Stat
@@ -407,22 +407,22 @@ function AssetTable({
       <table className="w-full text-sm">
         <thead className="text-[11px] text-muted">
           <tr className="border-b border-line">
-            <SortTh k="name" align="left" className="px-5" {...th}>
+            <SortTh k="name" align="left" className="pr-2 pl-4 sm:px-5" {...th}>
               Name
             </SortTh>
-            <SortTh k="invested" className="px-3" {...th}>
+            <SortTh k="invested" className="hidden px-3 sm:table-cell" {...th}>
               Invested
             </SortTh>
             <SortTh k="value" className="px-3" {...th}>
               Value
             </SortTh>
-            <SortTh k="gain" className="px-3" {...th}>
+            <SortTh k="gain" className="pr-4 pl-3 sm:px-3" {...th}>
               Gain
             </SortTh>
-            <SortTh k="xirr" className="px-3" {...th}>
+            <SortTh k="xirr" className="hidden px-3 md:table-cell" {...th}>
               XIRR
             </SortTh>
-            <SortTh k="date" className="px-5" {...th}>
+            <SortTh k="date" className="hidden px-5 sm:table-cell" {...th}>
               {dateLabel}
             </SortTh>
           </tr>
@@ -434,7 +434,7 @@ function AssetTable({
             const stale = !matures && !m.navUsed && m.valueDate ? daysBetween(m.valueDate, today) > 60 : false;
             return (
               <tr key={a.id} onClick={() => onOpen(a)} className={`cursor-pointer border-b border-line/60 last:border-0 hover:bg-surface-2/60 ${a.closed ? 'opacity-50' : ''}`}>
-                <td className="px-5 py-2.5">
+                <td className="min-w-36 py-2.5 pr-2 pl-4 sm:px-5">
                   <div className="flex items-center gap-2 font-medium">
                     {showType && <Dot color={ASSET_TYPES[a.type].color} className="size-2" />}
                     {a.name}
@@ -451,10 +451,10 @@ function AssetTable({
                       .join(' · ')}
                   </div>
                 </td>
-                <td className="px-3 py-2.5 text-right">
+                <td className="hidden px-3 py-2.5 text-right sm:table-cell">
                   <Money value={m.invested} />
                 </td>
-                <td className="px-3 py-2.5 text-right font-medium">
+                <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">
                   <Money value={m.value} />
                   {m.maturityValue && !a.closed ? (
                     <div className="text-[11px] font-normal text-faint">
@@ -462,12 +462,12 @@ function AssetTable({
                     </div>
                   ) : null}
                 </td>
-                <td className="px-3 py-2.5 text-right">
+                <td className="py-2.5 pr-4 pl-3 text-right whitespace-nowrap sm:px-3">
                   <Money value={m.gain} sign colored />
                   {m.gainPct != null && <div className="text-[11px] text-faint">{pct(m.gainPct)}</div>}
                 </td>
-                <td className="px-3 py-2.5 text-right">{m.xirr != null ? pct(m.xirr) : '—'}</td>
-                <td className="px-5 py-2.5 text-right text-xs">
+                <td className="hidden px-3 py-2.5 text-right md:table-cell">{m.xirr != null ? pct(m.xirr) : '—'}</td>
+                <td className="hidden px-5 py-2.5 text-right text-xs sm:table-cell">
                   {matures ? (
                     <>
                       {formatDate(matures)}

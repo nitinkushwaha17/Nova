@@ -115,7 +115,17 @@ export default function Inflation() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label={`Inflation · FY ${fy}`} value={pct(rateFor(cpi, fy))} sub={cpi.rates[fy] === undefined ? 'Assumed (default rate)' : 'From your CPI table'} icon={<Flame className="size-4" />} tone="neg" />
+        <Stat
+          label={
+            <>
+              Inflation<span className="hidden sm:inline"> · FY {fy}</span>
+            </>
+          }
+          value={pct(rateFor(cpi, fy))}
+          sub={cpi.rates[fy] === undefined ? 'Assumed (default rate)' : 'From your CPI table'}
+          icon={<Flame className="size-4" />}
+          tone="neg"
+        />
         <Stat label="Average · last 5 years" value={pct(i5)} sub={`Prices up ${pct(inflationBetween(cpi, yearsAgo(5), today), 0)} overall`} />
         <Stat label="Average · last 10 years" value={pct(i10)} sub={`Prices up ${pct(inflationBetween(cpi, yearsAgo(10), today), 0)} overall`} />
         <Stat label="₹1 lakh from 10 years ago" value={<Money value={lakh10} />} sub="is what you'd need today for the same things" icon={<TrendingDown className="size-4" />} />

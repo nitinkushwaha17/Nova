@@ -150,7 +150,7 @@ export default function Dashboard() {
       <StatementReminder />
 
       <div className="space-y-5">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Stat
             label="Net worth"
             value={<Money value={nw.netWorth} />}
@@ -168,7 +168,11 @@ export default function Dashboard() {
             to="/networth"
           />
           <Stat
-            label={`Income · FY ${fy}`}
+            label={
+              <>
+                Income<span className="hidden sm:inline"> · FY {fy}</span>
+              </>
+            }
             value={<Money value={fyTotals.income} />}
             sub={
               prevTotals.income ? (
@@ -181,7 +185,11 @@ export default function Dashboard() {
             tone="pos"
           />
           <Stat
-            label={`Spending · FY ${fy}`}
+            label={
+              <>
+                Spending<span className="hidden sm:inline"> · FY {fy}</span>
+              </>
+            }
             value={<Money value={fyTotals.expense} />}
             sub={
               prevTotals.expense ? (

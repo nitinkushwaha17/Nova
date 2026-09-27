@@ -149,9 +149,12 @@ function StorageCard() {
           <thead className="text-left text-xs text-muted">
             <tr>
               <th className="py-1.5 font-medium">File</th>
-              <th className="font-medium">Records</th>
+              <th className="hidden font-medium sm:table-cell">Records</th>
               <th className="font-medium">Size</th>
-              <th className="font-medium">This device</th>
+              <th className="font-medium">
+                <span className="sm:hidden">Local</span>
+                <span className="hidden sm:inline">This device</span>
+              </th>
               <th className="font-medium">Drive</th>
             </tr>
           </thead>
@@ -162,9 +165,9 @@ function StorageCard() {
               const count = f && f.data && typeof f.data === 'object' ? (Array.isArray(f.data) ? f.data.length : Object.keys(f.data).length) : null;
               return (
                 <tr key={n} className="border-t border-line">
-                  <td className="py-1.5 font-mono text-xs">{n}</td>
-                  <td className="tabular text-muted">{count ?? '—'}</td>
-                  <td className="tabular text-muted">{f ? `${(size / 1024).toFixed(1)} KB` : '—'}</td>
+                  <td className="py-1.5 pr-2 font-mono text-xs break-all">{n}</td>
+                  <td className="hidden tabular text-muted sm:table-cell">{count ?? '—'}</td>
+                  <td className="pr-2 tabular whitespace-nowrap text-muted">{f ? `${(size / 1024).toFixed(1)} KB` : '—'}</td>
                   <td>{f ? f.dirty ? <Badge color="#fbbf24">changed</Badge> : <Badge>cached</Badge> : <span className="text-xs text-faint">not loaded</span>}</td>
                   <td>{remote[n] ? <Badge color="#34d399">rev {remote[n].rev}</Badge> : <span className="text-xs text-faint">—</span>}</td>
                 </tr>
