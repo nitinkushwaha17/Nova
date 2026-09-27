@@ -3,9 +3,20 @@ import { dropGmailToken, getGmailToken } from './google';
 
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
-/** SBI's e-statement mails (cbssbi.cas@alerts.sbi.bank.in, "E-account statement for your SBI account(s)"); older ones came from sbi.co.in */
-export const DEFAULT_GMAIL_QUERY =
-  '(from:cbssbi.cas@alerts.sbi.bank.in OR from:sbi.co.in OR subject:"E-account statement for your SBI account") has:attachment filename:pdf newer_than:1y';
+/** SBI's monthly e-statement mails only: TDS certificates and other SBI mail come from the same sender with other subjects */
+export const DEFAULT_GMAIL_QUERY = 'from:cbssbi.cas@alerts.sbi.bank.in subject:"E-account statement for your SBI account" has:attachment filename:pdf newer_than:1y';
+
+/** Gmail matches subject phrases loosely (by words), so quoted subject phrases in the query are re-checked exactly */
+export function subjectPhrases(query: string): string[] {
+  return [...query.matchAll(/subject:"([^"]+)"/gi)].map((m) => m[1].toLowerCase());
+}
+
+// Earlier defaults matched any SBI mail with a PDF (TDS certificates too); a saved copy of one means "use the default"
+const OLD_DEFAULTS = [
+  '(from:sbi.co.in OR from:sbi.bank.in) has:attachment filename:pdf newer_than:1y',
+  '(from:cbssbi.cas@alerts.sbi.bank.in OR from:sbi.co.in OR subject:"E-account statement for your SBI account") has:attachment filename:pdf newer_than:1y',
+];
+export const gmailQueryOf = (saved: string | undefined) => (saved && !OLD_DEFAULTS.includes(saved.trim()) ? saved : DEFAULT_GMAIL_QUERY);
 
 /** Attachments Nova can import */
 export const IMPORTABLE = /\.(pdf|xlsx?|xlsm|csv|tsv|txt|ods)$/i;
@@ -68,12 +79,13 @@ export async function searchStatements(query: string, max = 25): Promise<Stateme
       ),
     ),
   );
+  const phrases = subjectPhrases(query);
   return msgs
     .map((m) => {
       const h = (n: string) => m.payload.headers?.find((x) => x.name.toLowerCase() === n)?.value ?? '';
       return { id: m.id, date: new Date(+m.internalDate).toISOString(), subject: h('subject'), from: h('from'), attachments: attachmentsOf(m.id, m.payload) };
     })
-    .filter((m) => m.attachments.length);
+    .filter((m) => m.attachments.length && phrases.every((p) => m.subject.toLowerCase().includes(p)));
 }
 
 export function base64UrlToBytes(s: string): Uint8Array {

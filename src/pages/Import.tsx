@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AccountModal } from '../components/AccountModal';
 import { GmailImport } from '../components/GmailImport';
-import { DEFAULT_GMAIL_QUERY } from '../sync/gmail';
+import { DEFAULT_GMAIL_QUERY, gmailQueryOf } from '../sync/gmail';
 import { Badge, Button, Card, cx, Field, Input, Money, NumberInput, PageHeader, Select, Spinner, Tabs, toast } from '../components/ui';
 import { formatDate } from '../lib/dates';
 import { uid } from '../lib/format';
@@ -352,7 +352,7 @@ export default function Import() {
               </div>
             ) : (
               <GmailImport
-                query={settings.gmailQuery || DEFAULT_GMAIL_QUERY}
+                query={gmailQueryOf(settings.gmailQuery)}
                 onQuery={(q) => update('settings', (s) => ({ ...s, gmailQuery: q === DEFAULT_GMAIL_QUERY ? undefined : q }))}
                 imported={settings.gmailImported ?? []}
                 current={gmailKey}

@@ -7,7 +7,7 @@ import { findHeaderRow, mappingFits, readRows, rowsToTransactions, type Row } fr
 import { coveredThrough, STATEMENT_TYPES } from '../lib/statementDue';
 import { useStore } from '../store';
 import type { ISODate } from '../types';
-import { DEFAULT_GMAIL_QUERY, downloadAttachment, searchStatements, type MailAttachment } from './gmail';
+import { downloadAttachment, gmailQueryOf, searchStatements, type MailAttachment } from './gmail';
 
 export interface SyncedStatement {
   file: string;
@@ -59,7 +59,7 @@ export async function syncStatementsFromGmail(since: ISODate): Promise<Statement
   try {
     const store = useStore.getState();
     const { settings } = store;
-    const query = `${settings.gmailQuery || DEFAULT_GMAIL_QUERY} after:${gmailDate(since)}`;
+    const query = `${gmailQueryOf(settings.gmailQuery)} after:${gmailDate(since)}`;
     const mails = (await searchStatements(query)).sort((a, b) => a.date.localeCompare(b.date));
     const done = new Set(settings.gmailImported ?? []);
     const passwords = [...new Set((settings.statementPasswords ?? []).map((p) => p.password).filter(Boolean))];
