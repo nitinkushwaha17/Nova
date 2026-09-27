@@ -28,7 +28,7 @@ describe('dates', () => {
 
 describe('format', () => {
   it('parses amounts', () => {
-    expect(parseAmount('1,00,000.00')).toBe(100000);
+    expect(parseAmount('1,23,456.78')).toBe(123456.78);
     expect(parseAmount('₹ 500 Dr')).toBe(-500);
     expect(parseAmount('(1,000)')).toBe(-1000);
     expect(parseAmount('')).toBe(0);

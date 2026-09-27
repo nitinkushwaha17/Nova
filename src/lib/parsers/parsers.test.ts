@@ -10,9 +10,9 @@ const SBI = [
   'Address\t:\tSomewhere',
   '',
   'Txn Date\tValue Date\tDescription\tRef No./Cheque No.\tDebit\tCredit\tBalance',
-  '1 Apr 2025\t1 Apr 2025\t"TO TRANSFER-UPI/DR/10000000001/SWIGGY/YESB/test.user@ybl/Payment\nfrom PhonePe"\tTRANSFER TO 0000000000001\t"1,131.19"\t\t"1,00,000.00"',
-  '2 Apr 2025\t2 Apr 2025\tBY TRANSFER-NEFT*ACME CORP SALARY\tNEFT123\t\t"1,50,000.00"\t"4,33,295.35"',
-  '3 Apr 2025\t3 Apr 2025\tSWEEP TRANSFER TO FD\t\t50000\t\t"3,83,295.35"',
+  '1 Apr 2025\t1 Apr 2025\t"TO TRANSFER-UPI/DR/10000000001/SWIGGY/YESB/test.user@ybl/Payment\nfrom PhonePe"\tTRANSFER TO 0000000000001\t"1,234.56"\t\t"1,00,000.00"',
+  '2 Apr 2025\t2 Apr 2025\tBY TRANSFER-NEFT*ACME CORP SALARY\tNEFT123\t\t"1,50,000.00"\t"2,50,000.00"',
+  '3 Apr 2025\t3 Apr 2025\tSWEEP TRANSFER TO FD\t\t50000\t\t"2,00,000.00"',
 ].join('\n');
 
 describe('tabular parser', () => {
@@ -27,7 +27,7 @@ describe('tabular parser', () => {
     expect(res.transactions).toHaveLength(3);
     const [a, b] = res.transactions;
     expect(a.date).toBe('2025-04-01');
-    expect(a.amount).toBe(-1131.19);
+    expect(a.amount).toBe(-1234.56);
     expect(a.balance).toBe(100000);
     expect(a.description).not.toContain('10000000001');
     expect(b.amount).toBe(150000);
