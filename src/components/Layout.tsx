@@ -29,7 +29,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { setStatusBarTheme } from '../platform';
 import { useStore } from '../store';
-import { startSmsAuto } from '../sync/sms';
 import { useAutoSnapshot } from '../hooks';
 import { reauthorize, syncNow, useSync } from '../sync/engine';
 import { hasValidToken, isConnected, isLocalOnly, resumeSkipped } from '../sync/google';
@@ -141,9 +140,6 @@ export function Layout() {
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   useAutoSnapshot();
-  useEffect(() => {
-    if (ready) void startSmsAuto();
-  }, [ready]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');
