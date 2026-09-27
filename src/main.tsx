@@ -9,7 +9,8 @@ initNative();
 void useStore.getState().init();
 
 // The app shell already ships the files locally, so the offline service worker is web-only
-if (import.meta.env.PROD && !isNative && 'serviceWorker' in navigator) {
+// The native shell bundles the app on https://localhost (no SW needed); when it loads the hosted site, cache it for offline use
+if (import.meta.env.PROD && (!isNative || location.hostname !== 'localhost') && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`));
 }
 

@@ -56,6 +56,8 @@ npm run android:apk  # debug APK → android/app/build/outputs/apk/debug/app-deb
 
 To install on your phone, enable USB debugging and use `android:run`, or copy the APK over and open it. The app asks for no sensitive permissions, so Play Protect allows a normal sideload.
 
+The app loads the deployed site (`https://nitinkushwaha17.github.io/Nova/`, set in `capacitor.config.ts`), so every push to `main` reaches the phone on its next launch without a new APK. A new APK is only needed for native changes (plugins, permissions, icons). The site is cached for offline use after the first launch. To bundle the web build into the APK instead, build with `NOVA_APP_URL=` (empty); to test local changes, point it at another address. Data lives per origin, so switching between the two modes starts from an empty local database that fills again from Drive.
+
 In the app, Google sign-in goes through Google Play services instead of the web popup (Google blocks its web sign-in inside app WebViews), via a small native plugin in `android/app/src/main/java/in/nova/finance/GoogleAuthPlugin.java`. Tokens renew silently while access is granted, so the app syncs on launch without a click. This needs an **Android** OAuth client in the same Google Cloud project as the web client: **APIs & Services → Credentials → Create credentials → OAuth client ID → Android**, package name `in.nova.finance`, and the SHA-1 of the key that signs the APK. For debug builds that's the machine's debug keystore:
 
 ```bash
