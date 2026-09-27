@@ -45,7 +45,15 @@ npm run android:run  # build and run on a connected phone or emulator
 npm run android:apk  # debug APK → android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-To install on your phone, enable USB debugging and use `android:run`, or copy the APK over and open it. The app asks for no sensitive permissions, so Play Protect allows a normal sideload. Google sign-in isn't available in the app yet (Google blocks its web sign-in inside apps; native sign-in is next), so the app currently works offline.
+To install on your phone, enable USB debugging and use `android:run`, or copy the APK over and open it. The app asks for no sensitive permissions, so Play Protect allows a normal sideload.
+
+In the app, Google sign-in goes through Google Play services instead of the web popup (Google blocks its web sign-in inside app WebViews), via a small native plugin in `android/app/src/main/java/in/nova/finance/GoogleAuthPlugin.java`. Tokens renew silently while access is granted, so the app syncs on launch without a click. This needs an **Android** OAuth client in the same Google Cloud project as the web client: **APIs & Services → Credentials → Create credentials → OAuth client ID → Android**, package name `in.nova.finance`, and the SHA-1 of the key that signs the APK. For debug builds that's the machine's debug keystore:
+
+```bash
+keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android
+```
+
+Each machine (and a release key) has its own SHA-1; add one Android client per SHA-1. Without a matching client, sign-in fails with "developer console is not set up correctly" (error 10).
 
 ## Google sign-in
 

@@ -4,7 +4,7 @@ import { allFiles, getFile, getSyncMeta, putFile, setSyncMeta } from '../storage
 import { CORE_FILES, driveName, manifestName, PROFILES_FILE, SCHEMA_VERSION } from '../storage/files';
 import { drivePrefixFor, mergeProfiles, useProfiles, type Profile } from '../storage/profiles';
 import * as drive from './drive';
-import { hasValidToken, isConnected, NeedsAuthError, setLocalOnly, signIn, signOut } from './google';
+import { isConnected, NeedsAuthError, restoreSession, setLocalOnly, signIn, signOut } from './google';
 
 export type SyncStatus = 'disconnected' | 'needs-auth' | 'idle' | 'syncing' | 'error' | 'offline';
 
@@ -297,7 +297,7 @@ export async function initSync() {
   set({ remoteFiles: meta.remoteFiles ?? {}, lastSyncAt: meta.lastSyncAt });
   await refreshPending();
   if (!isConnected()) set({ status: 'disconnected' });
-  else if (hasValidToken()) void syncNow();
+  else if (await restoreSession()) void syncNow();
   else set({ status: 'needs-auth' });
   window.addEventListener('online', () => {
     if (useSync.getState().status === 'offline') void syncNow();

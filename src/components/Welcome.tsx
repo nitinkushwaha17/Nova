@@ -1,7 +1,6 @@
 import { Cloud, FileLock2, HardDrive, WifiOff } from 'lucide-react';
 import { useState } from 'react';
 import { connect } from '../sync/engine';
-import { isNative } from '../platform';
 import { connectedEmail, setLocalOnly, skipResume } from '../sync/google';
 import { Button, toast } from './ui';
 
@@ -73,7 +72,7 @@ export function Welcome({ mode, onDone }: { mode: 'welcome' | 'resume'; onDone: 
               <FileLock2 className="mt-0.5 size-4 shrink-0 text-accent" />
               <span>
                 <b className="font-medium">Statements are read on this device</b>
-                <span className="block text-xs text-muted">Files and passwords never leave your browser.</span>
+                <span className="block text-xs text-muted">Files and passwords never leave your device.</span>
               </span>
             </li>
             <li className="flex gap-3">
@@ -87,22 +86,16 @@ export function Welcome({ mode, onDone }: { mode: 'welcome' | 'resume'; onDone: 
         )}
 
         <div className="mt-7 space-y-3">
-          {isNative ? (
-            <p className="rounded-xl border border-line bg-surface-2/50 p-3 text-xs text-muted">
-              Google Drive sync in the mobile app needs native Google sign-in, which is coming next. For now the app works offline on this phone.
-            </p>
-          ) : (
-            <Button variant="primary" className="w-full justify-center" loading={busy} icon={<GoogleG />} onClick={signIn}>
-              {mode === 'resume' && email ? `Continue as ${email}` : 'Sign in with Google'}
-            </Button>
-          )}
+          <Button variant="primary" className="w-full justify-center" loading={busy} icon={<GoogleG />} onClick={signIn}>
+            {mode === 'resume' && email ? `Continue as ${email}` : 'Sign in with Google'}
+          </Button>
           <Button variant="ghost" className="w-full justify-center" icon={<HardDrive className="size-4" />} onClick={skip}>
             {mode === 'resume' ? 'Use offline for now' : 'Continue without syncing'}
           </Button>
           <p className="text-center text-[11px] text-faint">
             {mode === 'resume'
               ? 'Nothing is lost — pending changes upload after you sign in.'
-              : 'Without syncing, data stays only in this browser. You can connect Drive later in Settings.'}
+              : 'Without syncing, data stays only on this device. You can connect Drive later in Settings.'}
           </p>
         </div>
       </div>

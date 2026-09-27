@@ -3,7 +3,6 @@ import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDate, monthLabel } from '../lib/dates';
 import { dueStatements } from '../lib/statementDue';
-import { isNative } from '../platform';
 import { useStore } from '../store';
 import { hasGmailToken } from '../sync/google';
 import { syncStatementsFromGmail, useStatementSync, type StatementSyncResult } from '../sync/statementSync';
@@ -27,7 +26,6 @@ export function StatementReminder() {
   const { running, result } = useStatementSync();
   const { month, due } = useMemo(() => dueStatements(accounts, Object.values(txByFY).flat()), [accounts, txByFY]);
   const since = due.reduce((min, d) => (d.through < min ? d.through : min), due[0]?.through ?? '');
-  const canGmail = !isNative;
 
   const run = async (quiet = false) => {
     try {
@@ -39,7 +37,7 @@ export function StatementReminder() {
   };
 
   useEffect(() => {
-    if (autoTried || !due.length || !canGmail || dismissed === month || !hasGmailToken()) return;
+    if (autoTried || !due.length || dismissed === month || !hasGmailToken()) return;
     autoTried = true;
     void run(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,11 +112,9 @@ export function StatementReminder() {
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {canGmail && (
-          <Button size="sm" variant="primary" icon={<Mail className="size-4" />} loading={running} onClick={() => void run()}>
-            Sync from Gmail
-          </Button>
-        )}
+        <Button size="sm" variant="primary" icon={<Mail className="size-4" />} loading={running} onClick={() => void run()}>
+          Sync from Gmail
+        </Button>
         <Link
           to={`/import?account=${due[0].account.id}`}
           className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs font-medium hover:border-accent/50"

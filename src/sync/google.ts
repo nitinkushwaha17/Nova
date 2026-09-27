@@ -1,6 +1,27 @@
-/* Google Identity Services (token model) — browser-only OAuth, no backend. */
+/* Google OAuth without a backend: Google Identity Services (token model) in the browser, Play services in the Android app. */
 
+import { registerPlugin } from '@capacitor/core';
 import { isNative } from '../platform';
+
+// Android: GoogleAuthPlugin.java. Google blocks its web sign-in inside app WebViews.
+interface GoogleAuthPlugin {
+  authorize(opts: { scopes: string[]; interactive?: boolean }): Promise<{ accessToken: string; scopes: string[] }>;
+  clearToken(opts: { token: string }): Promise<void>;
+}
+const NativeAuth = registerPlugin<GoogleAuthPlugin>('GoogleAuth');
+// Play services doesn't report the lifetime; Google access tokens last an hour
+const NATIVE_TTL = 55 * 60 * 1000;
+
+async function nativeToken(scopes: string[], interactive: boolean): Promise<string> {
+  try {
+    return (await NativeAuth.authorize({ scopes, interactive })).accessToken;
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    if (code === 'NEEDS_AUTH') throw new NeedsAuthError();
+    if (code === 'CANCELLED') throw new Error('Sign-in window closed');
+    throw new Error((e as Error).message || 'Google sign-in failed');
+  }
+}
 
 interface TokenResponse {
   access_token: string;
@@ -127,24 +148,36 @@ export function hasValidToken() {
   return !!token && token.expiresAt > Date.now();
 }
 
-// Google blocks its web sign-in inside app WebViews, so the mobile app needs native sign-in instead
-function assertWebSignIn() {
-  if (isNative) throw new Error("Google sign-in isn't available in the mobile app yet.");
-}
-
 /**
  * Get an access token. Interactive requests open Google's popup and must be triggered by a user
  * gesture; non-interactive calls throw NeedsAuthError when the token has expired.
+ * In the Android app, non-interactive calls renew the token silently while access is still granted.
  */
 export async function getToken(interactive: boolean, forceConsent = false): Promise<string> {
   if (token && token.expiresAt > Date.now() && !forceConsent) return token.value;
+  if (isNative) {
+    const t = await nativeToken(SCOPE.split(' '), interactive);
+    setToken({ value: t, expiresAt: Date.now() + NATIVE_TTL });
+    return t;
+  }
   if (!interactive) throw new NeedsAuthError();
-  assertWebSignIn();
   const c = await getClient();
   return new Promise<string>((resolve, reject) => {
     pending = { resolve, reject };
     c.requestAccessToken({ prompt: forceConsent ? 'consent' : '', login_hint: connectedEmail() || undefined });
   });
+}
+
+/** App start: true if Drive can sync without a click (valid token, or a silent renewal in the Android app) */
+export async function restoreSession(): Promise<boolean> {
+  if (hasValidToken()) return true;
+  if (!isNative || !isConnected()) return false;
+  try {
+    await getToken(false);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function signIn(): Promise<string> {
@@ -164,13 +197,25 @@ export async function signIn(): Promise<string> {
 }
 
 export function signOut() {
-  if (token && window.google) window.google.accounts.oauth2.revoke(token.value);
+  if (token && isNative) {
+    // Revoking the grant makes the next sign-in ask again, like the web popup does
+    const value = token.value;
+    void fetch('https://oauth2.googleapis.com/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `token=${encodeURIComponent(value)}`,
+    })
+      .catch(() => {})
+      .finally(() => void NativeAuth.clearToken({ token: value }).catch(() => {}));
+  } else if (token && window.google) window.google.accounts.oauth2.revoke(token.value);
   setToken(null);
   localStorage.removeItem(LS_CONNECTED);
   localStorage.removeItem(LS_EMAIL);
 }
 
 export function invalidateToken() {
+  // Play services would otherwise hand back the same rejected token
+  if (token && isNative) void NativeAuth.clearToken({ token: token.value }).catch(() => {});
   setToken(null);
 }
 
@@ -183,12 +228,19 @@ let gmailToken: { value: string; expiresAt: number } | null = null;
 let gmailPending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null;
 
 export const hasGmailToken = () => !!gmailToken && gmailToken.expiresAt > Date.now();
-export const dropGmailToken = () => void (gmailToken = null);
+export const dropGmailToken = () => {
+  if (gmailToken && isNative) void NativeAuth.clearToken({ token: gmailToken.value }).catch(() => {});
+  gmailToken = null;
+};
 
 /** Must be called from a click handler the first time (opens Google's consent popup) */
 export async function getGmailToken(): Promise<string> {
   if (gmailToken && gmailToken.expiresAt > Date.now()) return gmailToken.value;
-  assertWebSignIn();
+  if (isNative) {
+    const t = await nativeToken([GMAIL_SCOPE], true);
+    gmailToken = { value: t, expiresAt: Date.now() + NATIVE_TTL };
+    return t;
+  }
   await loadScript();
   if (!gmailClient) {
     gmailClient = window.google!.accounts.oauth2.initTokenClient({
