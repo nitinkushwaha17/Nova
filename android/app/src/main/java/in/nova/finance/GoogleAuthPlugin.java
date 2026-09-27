@@ -39,16 +39,34 @@ public class GoogleAuthPlugin extends Plugin {
             PluginCall call = pendingCall;
             pendingCall = null;
             if (call == null) return;
-            if (result.getResultCode() != Activity.RESULT_OK) {
-                call.reject("Sign-in was cancelled", "CANCELLED");
-                return;
-            }
+            // A failed consent comes back as "cancelled"; the intent still carries the real status (e.g. 10 = no matching Android OAuth client)
             try {
-                resolveToken(call, Identity.getAuthorizationClient(getActivity()).getAuthorizationResultFromIntent(result.getData()));
+                AuthorizationResult r = Identity.getAuthorizationClient(getActivity()).getAuthorizationResultFromIntent(result.getData());
+                if (result.getResultCode() == Activity.RESULT_OK || r.getAccessToken() != null) {
+                    resolveToken(call, r);
+                    return;
+                }
             } catch (ApiException e) {
-                call.reject(e.getMessage(), "FAILED", e);
+                if (e.getStatusCode() != 16 /* CANCELED */) {
+                    call.reject(describe(e), "FAILED", e);
+                    return;
+                }
+            } catch (Exception ignored) {
+                // No status in the intent: the user backed out
             }
+            call.reject("Sign-in was cancelled", "CANCELLED");
         });
+    }
+
+    private static String describe(ApiException e) {
+        switch (e.getStatusCode()) {
+            case 10:
+                return "Google sign-in isn't set up for this app (error 10). Add an Android OAuth client for package in.nova.finance with this build's SHA-1 in Google Cloud.";
+            case 7:
+                return "No internet connection";
+            default:
+                return "Google sign-in failed (" + e.getStatusCode() + "): " + e.getMessage();
+        }
     }
 
     /** { scopes: string[], interactive?: boolean } → { accessToken, scopes } */
@@ -82,7 +100,7 @@ public class GoogleAuthPlugin extends Plugin {
                     consentLauncher.launch(new IntentSenderRequest.Builder(r.getPendingIntent().getIntentSender()).build());
                 }
             })
-            .addOnFailureListener(e -> call.reject(e.getMessage(), "FAILED", e));
+            .addOnFailureListener(e -> call.reject(e instanceof ApiException ? describe((ApiException) e) : e.getMessage(), "FAILED", e));
     }
 
     /** Drop a cached token (expired or revoked) so the next authorize returns a fresh one */
