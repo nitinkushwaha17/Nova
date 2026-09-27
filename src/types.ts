@@ -204,6 +204,8 @@ export interface Asset {
   createdAt: string;
   /** Source identity for assets synced from statements (e.g. an SBI FD number), used to update them on re-import */
   ref?: string;
+  /** Date of the statement that last synced this asset; older statements never overwrite it */
+  syncedAsOf?: ISODate;
 }
 
 export interface PortfolioDoc {

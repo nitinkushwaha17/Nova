@@ -485,11 +485,17 @@ export default function Import() {
                           {fdPlan.add.length > 0 && <Badge color="#34d399">{fdPlan.add.length} new</Badge>}
                           {fdPlan.update.length > 0 && <Badge color="#60a5fa">{fdPlan.update.length} changed</Badge>}
                           {fdPlan.close.length > 0 && <Badge color="#fbbf24">{fdPlan.close.length} no longer listed → closed</Badge>}
-                          {fdPlan.unchanged > 0 && <Badge>{fdPlan.unchanged} already up to date</Badge>}
+                          {fdPlan.unchanged > 0 && !fdPlan.staleVs && <Badge>{fdPlan.unchanged} already up to date</Badge>}
+                          {fdPlan.staleVs && <Badge color="#fbbf24">Older than the {formatDate(fdPlan.staleVs)} statement already synced, newer data kept</Badge>}
                         </div>
                       </div>
-                      <Button variant="primary" size="sm" disabled={!fdPlan.add.length && !fdPlan.update.length && !fdPlan.close.length} onClick={syncDeposits}>
-                        {fdPlan.add.length || fdPlan.update.length || fdPlan.close.length ? 'Sync to Assets' : 'In sync'}
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={!fdPlan.add.length && !fdPlan.update.length && !fdPlan.close.length && !fdPlan.touch.length}
+                        onClick={syncDeposits}
+                      >
+                        {fdPlan.add.length || fdPlan.update.length || fdPlan.close.length || fdPlan.touch.length ? 'Sync to Assets' : 'In sync'}
                       </Button>
                     </div>
                     <p className="mt-3 text-[11px] text-faint">

@@ -278,10 +278,23 @@ export interface DepositSyncPlan {
   /** Previously synced FDs from the same customer that are no longer listed (matured or closed) */
   close: Asset[];
   unchanged: number;
+  /** Same terms, only the statement date moves forward (applied, not reported) */
+  touch: Asset[];
+  /** Set when a newer statement from this customer was already synced: nothing is applied */
+  staleVs?: ISODate;
 }
 
 export function planDepositSync(assets: Asset[], st: SbiStatement, now = new Date().toISOString()): DepositSyncPlan {
-  const plan: DepositSyncPlan = { add: [], update: [], close: [], unchanged: 0 };
+  const plan: DepositSyncPlan = { add: [], update: [], close: [], unchanged: 0, touch: [] };
+  const prefix = `sbi:${st.customer ?? ''}:`;
+  const asOf = st.asOf ?? undefined;
+  // An older statement would reopen matured FDs and roll back renewed terms
+  const latest = assets.reduce<ISODate | undefined>((m, a) => (a.ref?.startsWith(prefix) && a.syncedAsOf && (!m || a.syncedAsOf > m) ? a.syncedAsOf : m), undefined);
+  if (asOf && latest && asOf < latest) {
+    plan.staleVs = latest;
+    plan.unchanged = st.deposits.length;
+    return plan;
+  }
   const byRef = new Map(assets.filter((a) => a.ref).map((a) => [a.ref!, a]));
   const seen = new Set<string>();
   for (const d of st.deposits) {
@@ -291,20 +304,32 @@ export function planDepositSync(assets: Asset[], st: SbiStatement, now = new Dat
     const deposit: DepositDetails = { principal: d.principal, rate: d.rate, startDate: termStart(d), maturityDate: d.maturityDate, compounding: 4, payout: 'cumulative' };
     const existing = byRef.get(ref);
     if (!existing) {
-      plan.add.push({ id: uid('as'), type: 'fd', name: `SBI FD ••${d.last4}`, institution: 'SBI', deposit, valuations: [], flows: [], createdAt: now, ref });
+      plan.add.push({ id: uid('as'), type: 'fd', name: `SBI FD ••${d.last4}`, institution: 'SBI', deposit, valuations: [], flows: [], createdAt: now, ref, syncedAsOf: asOf });
+      continue;
+    }
+    // A statement without a date can't prove it's newer than this asset's last sync
+    if (existing.syncedAsOf && (!asOf || asOf < existing.syncedAsOf)) {
+      plan.unchanged++;
       continue;
     }
     const same = existing.deposit && !existing.closed && (Object.keys(deposit) as (keyof DepositDetails)[]).every((k) => existing.deposit![k] === deposit[k]);
-    if (same) plan.unchanged++;
+    const syncedAsOf = asOf ?? existing.syncedAsOf;
+    if (same) {
+      plan.unchanged++;
+      if (syncedAsOf !== existing.syncedAsOf) plan.touch.push({ ...existing, syncedAsOf });
+    }
     // Keep the user's name/notes; refresh the terms from the bank
-    else plan.update.push({ ...existing, deposit: { ...existing.deposit, ...deposit }, closed: false });
+    else plan.update.push({ ...existing, deposit: { ...existing.deposit, ...deposit }, closed: false, syncedAsOf });
   }
-  const prefix = `sbi:${st.customer ?? ''}:`;
-  for (const a of assets) if (a.ref?.startsWith(prefix) && !seen.has(a.ref) && !a.closed) plan.close.push({ ...a, closed: true });
+  for (const a of assets) {
+    if (!a.ref?.startsWith(prefix) || seen.has(a.ref) || a.closed) continue;
+    if (a.syncedAsOf && (!asOf || asOf < a.syncedAsOf)) continue;
+    plan.close.push({ ...a, closed: true, syncedAsOf: asOf ?? a.syncedAsOf });
+  }
   return plan;
 }
 
 export function applyDepositSync(assets: Asset[], plan: DepositSyncPlan): Asset[] {
-  const changed = new Map([...plan.update, ...plan.close].map((a) => [a.id, a]));
+  const changed = new Map([...plan.touch, ...plan.update, ...plan.close].map((a) => [a.id, a]));
   return [...assets.map((a) => changed.get(a.id) ?? a), ...plan.add];
 }

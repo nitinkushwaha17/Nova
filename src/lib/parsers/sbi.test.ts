@@ -137,4 +137,23 @@ describe('SBI e-statement', () => {
     expect(after).toHaveLength(2);
     expect(after.find((a) => a.name === 'SBI FD ••1111')?.closed).toBe(true);
   });
+
+  it('never lets an older statement overwrite FDs synced from a newer one', () => {
+    const st = parseSbiStatement(statement());
+    const sep = { ...st, asOf: '2026-09-30', deposits: [{ ...st.deposits[1], rate: 7.1 }] };
+    const assets = applyDepositSync([], planDepositSync([], sep));
+    expect(assets[0].syncedAsOf).toBe('2026-09-30');
+
+    // August statement imported afterwards: still lists the closed FD and the old rate
+    const aug = { ...st, asOf: '2026-08-31' };
+    const stale = planDepositSync(assets, aug);
+    expect(stale.staleVs).toBe('2026-09-30');
+    expect([stale.add.length, stale.update.length, stale.close.length, stale.touch.length]).toEqual([0, 0, 0, 0]);
+    expect(applyDepositSync(assets, stale)).toEqual(assets);
+
+    // A newer statement with the same terms just moves the sync date forward
+    const oct = planDepositSync(assets, { ...sep, asOf: '2026-10-31' });
+    expect([oct.update.length, oct.touch.length]).toEqual([0, 1]);
+    expect(applyDepositSync(assets, oct)[0].syncedAsOf).toBe('2026-10-31');
+  });
 });

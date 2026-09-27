@@ -93,7 +93,7 @@ export async function syncStatementsFromGmail(since: ISODate): Promise<Statement
           if (st.deposits.length) {
             const plan = planDepositSync(useStore.getState().portfolio.assets, st);
             deposits = plan.add.length + plan.update.length + plan.close.length;
-            if (deposits) useStore.getState().update('portfolio', (d) => ({ assets: applyDepositSync(d.assets, plan) }));
+            if (deposits || plan.touch.length) useStore.getState().update('portfolio', (d) => ({ assets: applyDepositSync(d.assets, plan) }));
           }
           for (const sa of st.accounts) {
             const acc = accounts.find((a) => a.last4 && a.last4 === sa.last4);
