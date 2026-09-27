@@ -170,7 +170,7 @@ export function Layout() {
         )}
       >
         <Link to="/" className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-          <img src="/favicon.svg" alt="" className="size-8" />
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-8" />
           <div>
             <div className="text-lg leading-none font-semibold tracking-tight">Nova</div>
             <div className="mt-0.5 text-[10px] tracking-widest text-faint uppercase">Personal finance</div>

@@ -40,7 +40,7 @@ const pages = [
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <Suspense
         fallback={
           <div className="grid h-screen place-items-center">

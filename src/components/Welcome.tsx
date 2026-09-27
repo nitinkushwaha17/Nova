@@ -50,7 +50,7 @@ export function Welcome({ mode, onDone }: { mode: 'welcome' | 'resume'; onDone: 
       <div className="pointer-events-none absolute -top-40 left-1/2 size-[36rem] -translate-x-1/2 rounded-full bg-accent/20 blur-3xl" />
       <div className="card relative w-full max-w-md p-8">
         <div className="flex flex-col items-center text-center">
-          <img src="/favicon.svg" alt="" className="size-14" />
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-14" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">{mode === 'resume' ? 'Welcome back' : 'Welcome to Nova'}</h1>
           <p className="mt-1.5 text-sm text-muted">
             {mode === 'resume'

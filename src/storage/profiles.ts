@@ -89,9 +89,11 @@ export async function deleteProfileLocal(id: string) {
 export function switchProfile(id: string) {
   localStorage.setItem(LS_ACTIVE, id);
   // Detail routes (e.g. /collections/:id) point at the old profile's data
-  const path = location.pathname.split('/').slice(0, 2).join('/') || '/';
-  if (path === location.pathname) location.reload();
-  else location.assign(path);
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const route = location.pathname.slice(base.length) || '/';
+  const top = route.split('/').slice(0, 2).join('/') || '/';
+  if (top === route) location.reload();
+  else location.assign(base + top);
 }
 
 /** Merge a remote registry into the local one (newest update wins per profile). Returns true if local changed. */

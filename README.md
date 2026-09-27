@@ -35,6 +35,15 @@ npm run build      # production build in dist/ (installable PWA, works offline)
 
 The app works without Google Drive. Data then stays only in this browser, so export a backup from **Settings → Backup & restore** regularly.
 
+### GitHub Pages
+
+`.github/workflows/pages.yml` tests, builds and deploys on every push to `main`. It builds with `BASE_PATH=/<repo>/` so the app lives at `https://<user>.github.io/<repo>/`, and copies `index.html` to `404.html` so deep links such as `/Nova/transactions` load the app. One-time setup:
+
+1. In the repo, **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. Add `https://<user>.github.io` (no path) to the web OAuth client's **Authorised JavaScript origins** (see [Google sign-in](#google-sign-in)).
+
+To try the Pages build locally: `BASE_PATH=/Nova/ npm run build`. Without `BASE_PATH` the app builds for `/`, which is what `npm run dev` and the Android app use.
+
 ### Android app
 
 The same codebase is wrapped with [Capacitor](https://capacitorjs.com/); the native project is in `android/`. You need Android Studio (its bundled JDK 21 is used automatically, so your own `JAVA_HOME` can be any version).
