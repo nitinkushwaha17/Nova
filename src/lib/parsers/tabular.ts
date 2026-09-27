@@ -69,7 +69,12 @@ export async function readRows(file: File, password?: string): Promise<Row[]> {
     } catch (e) {
       // Legacy .xls: SheetJS handles XOR-obfuscated files when given the password, but not RC4
       if (/password/i.test((e as Error).message))
-        throw new PasswordError(password ? 'unsupported' : 'required', password ? 'This .xls uses encryption that can’t be opened in the browser. Open it in Excel and save as .xlsx (the password can stay).' : 'This file is password-protected');
+        throw new PasswordError(
+          password ? 'unsupported' : 'required',
+          password
+            ? 'This .xls uses encryption that can’t be opened in the browser. Open it in Excel and save as .xlsx (the password can stay).'
+            : 'This file is password-protected',
+        );
       throw e;
     }
     // Pick the sheet with most rows
@@ -100,7 +105,12 @@ const SYNONYMS: Record<keyof Omit<ColumnMapping, 'dateFormat'>, string[]> = {
 };
 
 function norm(s: string) {
-  return s.toLowerCase().replace(/\s+/g, ' ').replace(/[()₹]/g, '').replace(/\binr\b/, '').trim();
+  return s
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[()₹]/g, '')
+    .replace(/\binr\b/, '')
+    .trim();
 }
 
 function escapeRe(s: string) {
@@ -145,6 +155,12 @@ export function autoMap(headers: string[]): ColumnMapping | null {
   return { date, description, debit, credit, amount, drCr, balance, reference, valueDate: valueDate !== date ? valueDate : undefined, dateFormat: 'auto' };
 }
 
+/** Whether a saved column mapping applies to this header row */
+export function mappingFits(m: ColumnMapping | undefined, headers: string[]): boolean {
+  if (!m) return false;
+  return [m.date, m.description, m.debit, m.credit, m.amount].filter(Boolean).every((h) => headers.includes(h!));
+}
+
 /** Scan the first rows for the transaction table header (skips account info lines above it) */
 export function findHeaderRow(rows: Row[]): { index: number; mapping: ColumnMapping | null } {
   for (let i = 0; i < Math.min(rows.length, 60); i++) {
@@ -165,7 +181,11 @@ function iso(y: number, m: number, d: number): ISODate | null {
 }
 
 export function parseDate(raw: string, format: ColumnMapping['dateFormat'] = 'auto'): ISODate | null {
-  const s = (raw ?? '').trim().replace(/^["']|["']$/g, '').split(/\s+\d{1,2}:\d{2}/)[0].trim();
+  const s = (raw ?? '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .split(/\s+\d{1,2}:\d{2}/)[0]
+    .trim();
   if (!s) return null;
   // Excel serial date
   if (/^\d{5}(\.\d+)?$/.test(s)) {

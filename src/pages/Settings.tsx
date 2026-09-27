@@ -9,15 +9,12 @@ import { convertLegacy, isLegacyBackup } from '../lib/parsers/legacy';
 import { allFiles } from '../storage/db';
 import { CORE_FILES } from '../storage/files';
 import { useStore, type FullBackup } from '../store';
-import { connect, disconnect, refreshConfigStatus, resolveConflict, syncNow, useSync } from '../sync/engine';
-import { connectedEmail, getClientId, isConnected, setClientId } from '../sync/google';
+import { connect, disconnect, resolveConflict, syncNow, useSync } from '../sync/engine';
+import { connectedEmail, isConnected } from '../sync/google';
 import type { StatementPassword, StoredFile } from '../types';
-
-const ENV_CLIENT = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 function DriveCard() {
   const sync = useSync();
-  const [clientId, setCid] = useState(getClientId());
   const [busy, setBusy] = useState(false);
   const connected = isConnected();
 
@@ -45,23 +42,6 @@ function DriveCard() {
         Data is stored as JSON files in your Drive's hidden <b>app data folder</b> — private to Nova, not visible in your Drive file list and not accessible to other apps. Only the
         files a page needs are downloaded (settings and summaries always; transactions and tax data per financial year on demand).
       </p>
-      {!ENV_CLIENT && (
-        <Field label="Google OAuth Client ID" hint="Create a Web OAuth client in Google Cloud Console (see README). Stored only in this browser." className="mb-4">
-          <div className="flex gap-2">
-            <Input value={clientId} onChange={(e) => setCid(e.target.value)} placeholder="xxxxxxxx.apps.googleusercontent.com" />
-            <Button
-              onClick={() => {
-                setClientId(clientId.trim());
-                refreshConfigStatus();
-                toast('Client ID saved');
-              }}
-              disabled={clientId.trim() === getClientId()}
-            >
-              Save
-            </Button>
-          </div>
-        </Field>
-      )}
       <div className="flex flex-wrap items-center gap-3">
         {connected ? (
           <>
@@ -87,7 +67,7 @@ function DriveCard() {
             </Button>
           </>
         ) : (
-          <Button variant="primary" icon={<Cloud className="size-4" />} loading={busy} disabled={!getClientId()} onClick={doConnect}>
+          <Button variant="primary" icon={<Cloud className="size-4" />} loading={busy} onClick={doConnect}>
             Connect Google Drive
           </Button>
         )}

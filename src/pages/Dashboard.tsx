@@ -2,6 +2,7 @@ import { ArrowRight, CalendarClock, Cloud, Landmark, PiggyBank, Plus, Sparkles, 
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { StatementReminder } from '../components/StatementReminder';
 import { axisMoney, Badge, Card, ChartTooltip, Delta, Dot, Money, PageHeader, Progress, Stat } from '../components/ui';
 import { useNetWorth } from '../hooks';
 import { addDays, addMonths, currentFY, daysBetween, formatDate, fyMonths, monthLabel, shiftFY, todayISO } from '../lib/dates';
@@ -33,7 +34,7 @@ export default function Dashboard() {
   const taxByFY = useStore((s) => s.taxByFY);
   const ensureFYs = useStore((s) => s.ensureFYs);
   const ensureTax = useStore((s) => s.ensureTax);
-  const connected = useSync((s) => s.status !== 'disconnected' && s.status !== 'unconfigured');
+  const connected = useSync((s) => s.status !== 'disconnected');
   const catMap = useCatMap();
   const nw = useNetWorth();
   const fy = currentFY();
@@ -49,7 +50,11 @@ export default function Dashboard() {
     const n = fyMonths(fy).filter((m) => m <= today.slice(0, 7)).length;
     const months = new Set(fyMonths(shiftFY(fy, -1)).slice(0, n));
     const prev = summaries[shiftFY(fy, -1)]?.months ?? {};
-    return mergeMonths(Object.entries(prev).filter(([m]) => months.has(m)).map(([, v]) => v));
+    return mergeMonths(
+      Object.entries(prev)
+        .filter(([m]) => months.has(m))
+        .map(([, v]) => v),
+    );
   }, [summaries, fy, today]);
   const savings = fyTotals.income - fyTotals.expense - fyTotals.investment;
 
@@ -121,25 +126,43 @@ export default function Dashboard() {
         title={
           <>
             {greeting}
-            {settings.displayName ? <>, <span className="gradient-text">{settings.displayName}</span></> : ''}
+            {settings.displayName ? (
+              <>
+                , <span className="gradient-text">{settings.displayName}</span>
+              </>
+            ) : (
+              ''
+            )}
           </>
         }
         subtitle={`Your financial picture for FY ${fy}`}
         actions={
-          <Link to="/import" className="inline-flex h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 px-3.5 text-sm font-medium text-white shadow-lg shadow-violet-900/25 hover:brightness-110">
+          <Link
+            to="/import"
+            className="inline-flex h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 px-3.5 text-sm font-medium text-white shadow-lg shadow-violet-900/25 hover:brightness-110"
+          >
             <Upload className="size-4" /> Import statement
           </Link>
         }
       />
 
       {onboarding && <Onboarding hasAccount={!!accounts.length} hasTxns={!!Object.keys(summaries).length} connected={connected} hasWealth={hasWealth} />}
+      <StatementReminder />
 
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Stat
             label="Net worth"
             value={<Money value={nw.netWorth} />}
-            sub={nwChange !== null ? <><Money value={nwChange} sign colored short /> since {monthLabel(prevSnap!.month)}</> : `${pct(nw.assets ? nw.liabilities / nw.assets : 0)} debt-to-assets`}
+            sub={
+              nwChange !== null ? (
+                <>
+                  <Money value={nwChange} sign colored short /> since {monthLabel(prevSnap!.month)}
+                </>
+              ) : (
+                `${pct(nw.assets ? nw.liabilities / nw.assets : 0)} debt-to-assets`
+              )
+            }
             icon={<Landmark className="size-4" />}
             tone="accent"
             to="/networth"
@@ -147,14 +170,26 @@ export default function Dashboard() {
           <Stat
             label={`Income · FY ${fy}`}
             value={<Money value={fyTotals.income} />}
-            sub={prevTotals.income ? <><Delta value={fyTotals.income / prevTotals.income - 1} /> vs same period last FY</> : undefined}
+            sub={
+              prevTotals.income ? (
+                <>
+                  <Delta value={fyTotals.income / prevTotals.income - 1} /> vs same period last FY
+                </>
+              ) : undefined
+            }
             icon={<TrendingUp className="size-4" />}
             tone="pos"
           />
           <Stat
             label={`Spending · FY ${fy}`}
             value={<Money value={fyTotals.expense} />}
-            sub={prevTotals.expense ? <><Delta value={fyTotals.expense / prevTotals.expense - 1} invert /> vs same period last FY</> : undefined}
+            sub={
+              prevTotals.expense ? (
+                <>
+                  <Delta value={fyTotals.expense / prevTotals.expense - 1} invert /> vs same period last FY
+                </>
+              ) : undefined
+            }
             icon={<TrendingDown className="size-4" />}
             tone="neg"
           />
@@ -167,7 +202,14 @@ export default function Dashboard() {
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[1.7fr_1fr]">
-          <Card title="Cash flow · last 12 months" action={<Link to="/analytics" className="text-xs text-accent hover:underline">Analytics →</Link>}>
+          <Card
+            title="Cash flow · last 12 months"
+            action={
+              <Link to="/analytics" className="text-xs text-accent hover:underline">
+                Analytics →
+              </Link>
+            }
+          >
             {hasFlow ? (
               <div className="h-72">
                 <ResponsiveContainer>
@@ -189,7 +231,14 @@ export default function Dashboard() {
             )}
           </Card>
 
-          <Card title="Net worth" action={<Link to="/networth" className="text-xs text-accent hover:underline">Details →</Link>}>
+          <Card
+            title="Net worth"
+            action={
+              <Link to="/networth" className="text-xs text-accent hover:underline">
+                Details →
+              </Link>
+            }
+          >
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <div className="text-xs text-muted">Assets</div>
@@ -234,7 +283,10 @@ export default function Dashboard() {
               })}
               {!alloc.length && (
                 <p className="text-sm text-muted">
-                  <Link to="/assets" className="text-accent hover:underline">Add FDs, funds, stocks and other assets</Link> to track your net worth.
+                  <Link to="/assets" className="text-accent hover:underline">
+                    Add FDs, funds, stocks and other assets
+                  </Link>{' '}
+                  to track your net worth.
                 </p>
               )}
             </div>
@@ -264,7 +316,13 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          <Card title={<span className="flex items-center gap-2"><CalendarClock className="size-4" /> Coming up · 90 days</span>}>
+          <Card
+            title={
+              <span className="flex items-center gap-2">
+                <CalendarClock className="size-4" /> Coming up · 90 days
+              </span>
+            }
+          >
             {upcoming.length ? (
               <div className="space-y-2.5">
                 {upcoming.map((u, i) => {
@@ -292,13 +350,24 @@ export default function Dashboard() {
             )}
           </Card>
 
-          <Card title="Recent transactions" action={<Link to="/transactions" className="text-xs text-accent hover:underline">All →</Link>} className="lg:col-span-2 xl:col-span-1">
+          <Card
+            title="Recent transactions"
+            action={
+              <Link to="/transactions" className="text-xs text-accent hover:underline">
+                All →
+              </Link>
+            }
+            className="lg:col-span-2 xl:col-span-1"
+          >
             <div className="space-y-2">
               {recent.map((t) => {
                 const c = t.category ? catMap.get(t.category) : undefined;
                 return (
                   <div key={t.id} className="flex items-center gap-3 text-sm">
-                    <div className="grid size-8 shrink-0 place-items-center rounded-lg text-xs font-semibold" style={{ background: `${c?.color ?? '#64748b'}22`, color: c?.color ?? 'var(--muted)' }}>
+                    <div
+                      className="grid size-8 shrink-0 place-items-center rounded-lg text-xs font-semibold"
+                      style={{ background: `${c?.color ?? '#64748b'}22`, color: c?.color ?? 'var(--muted)' }}
+                    >
                       {(c?.name ?? '?').slice(0, 1)}
                     </div>
                     <div className="min-w-0 flex-1">

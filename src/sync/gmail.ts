@@ -3,8 +3,9 @@ import { dropGmailToken, getGmailToken } from './google';
 
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
-/** SBI mails from sbi.co.in today; Indian banks are moving to *.bank.in domains */
-export const DEFAULT_GMAIL_QUERY = '(from:sbi.co.in OR from:sbi.bank.in) has:attachment filename:pdf newer_than:1y';
+/** SBI's e-statement mails (cbssbi.cas@alerts.sbi.bank.in, "E-account statement for your SBI account(s)"); older ones came from sbi.co.in */
+export const DEFAULT_GMAIL_QUERY =
+  '(from:cbssbi.cas@alerts.sbi.bank.in OR from:sbi.co.in OR subject:"E-account statement for your SBI account") has:attachment filename:pdf newer_than:1y';
 
 /** Attachments Nova can import */
 export const IMPORTABLE = /\.(pdf|xlsx?|xlsm|csv|tsv|txt|ods)$/i;

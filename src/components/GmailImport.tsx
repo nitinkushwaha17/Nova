@@ -2,7 +2,7 @@ import { Check, FileText, Mail, RotateCcw, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { formatDate } from '../lib/dates';
 import { DEFAULT_GMAIL_QUERY, downloadAttachment, searchStatements, type MailAttachment, type StatementMail } from '../sync/gmail';
-import { getClientId, hasGmailToken } from '../sync/google';
+import { hasGmailToken } from '../sync/google';
 import { Button, cx, Input, Spinner, toast } from './ui';
 
 const keyOf = (a: MailAttachment) => `${a.messageId}:${a.filename}`;
@@ -54,8 +54,6 @@ export function GmailImport({
       setOpening(null);
     }
   };
-
-  if (!getClientId()) return <p className="rounded-xl border border-line p-4 text-sm text-muted">Gmail import uses Google sign-in. Add your OAuth Client ID in Settings first.</p>;
 
   const done = new Set(imported);
   return (

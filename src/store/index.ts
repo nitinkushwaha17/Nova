@@ -8,6 +8,7 @@ import type {
   CpiDoc,
   FY,
   GroupTotals,
+  ISODate,
   LiabilitiesDoc,
   MetaDoc,
   NetWorthDoc,
@@ -102,6 +103,8 @@ interface State extends Docs {
   recomputeSummaries(fys?: FY[]): void;
 
   saveAccount(acc: Account): void;
+  /** Record that statements for the account now run through `through` (never moves back) */
+  noteStatement(accountId: string, through: ISODate): void;
   deleteAccount(id: string): Promise<void>;
   saveCategories(cats: Category[]): void;
   saveRules(rules: Rule[]): void;
@@ -360,6 +363,11 @@ export const useStore = create<State>((set, get) => {
         }
       }
       for (const fy of touched) saveFY(fy, perFY[fy]);
+      if (!isSms) {
+        const newest = new Map<string, ISODate>();
+        for (const t of statementRows) if (t.date > (newest.get(t.accountId) ?? '')) newest.set(t.accountId, t.date);
+        for (const [id, d] of newest) get().noteStatement(id, d);
+      }
       const smsUnmatched = isSms ? [] : unmatchedSms(Object.values({ ...get().txByFY, ...perFY }).flat(), statementRows).map((t) => t.id);
       return { added, duplicates, categorized, transfers, fys, merged, smsUnmatched };
     },
@@ -440,6 +448,11 @@ export const useStore = create<State>((set, get) => {
         const exists = m.accounts.some((a) => a.id === acc.id);
         return { ...m, accounts: exists ? m.accounts.map((a) => (a.id === acc.id ? acc : a)) : [...m.accounts, acc] };
       });
+    },
+
+    noteStatement(accountId, through) {
+      const acc = get().meta.accounts.find((a) => a.id === accountId);
+      if (acc && through > (acc.statementThrough ?? '')) get().saveAccount({ ...acc, statementThrough: through });
     },
 
     async deleteAccount(id) {

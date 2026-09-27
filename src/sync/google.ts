@@ -35,7 +35,8 @@ declare global {
 
 export const SCOPE = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email';
 
-const LS_CLIENT = 'nova.googleClientId';
+/** Nova's OAuth Web client. Client IDs are public by design; access is limited by the authorised JavaScript origins. */
+const NOVA_CLIENT_ID = '167718968754-6o12cobjuq87kfbe9aboa7jmblanoedb.apps.googleusercontent.com';
 const LS_CONNECTED = 'nova.driveConnected';
 const LS_EMAIL = 'nova.driveEmail';
 
@@ -45,14 +46,8 @@ export class NeedsAuthError extends Error {
   }
 }
 
-export function getClientId(): string {
-  return localStorage.getItem(LS_CLIENT) || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-}
-export function setClientId(id: string) {
-  if (id) localStorage.setItem(LS_CLIENT, id.trim());
-  else localStorage.removeItem(LS_CLIENT);
-  client = null;
-}
+// A forked build can still point at its own Google Cloud project via .env.local
+export const getClientId = (): string => import.meta.env.VITE_GOOGLE_CLIENT_ID || NOVA_CLIENT_ID;
 export const isConnected = () => localStorage.getItem(LS_CONNECTED) === '1';
 
 // Welcome screen choices: "use without syncing" is remembered; "offline for now" lasts for this tab only
@@ -103,12 +98,10 @@ function setToken(t: typeof token) {
 let pending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null;
 
 async function getClient(): Promise<TokenClient> {
-  const id = getClientId();
-  if (!id) throw new Error('Google OAuth Client ID is not configured (Settings → Cloud sync).');
   await loadScript();
   if (!client) {
     client = window.google!.accounts.oauth2.initTokenClient({
-      client_id: id,
+      client_id: getClientId(),
       scope: SCOPE,
       callback: (r) => {
         const p = pending;
@@ -185,7 +178,6 @@ export function invalidateToken() {
 
 export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 let gmailClient: TokenClient | null = null;
-let gmailClientId = '';
 // Memory only: Gmail access is never persisted, not even for the tab session
 let gmailToken: { value: string; expiresAt: number } | null = null;
 let gmailPending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null;
@@ -197,13 +189,10 @@ export const dropGmailToken = () => void (gmailToken = null);
 export async function getGmailToken(): Promise<string> {
   if (gmailToken && gmailToken.expiresAt > Date.now()) return gmailToken.value;
   assertWebSignIn();
-  const id = getClientId();
-  if (!id) throw new Error('Google OAuth Client ID is not configured (Settings → Cloud sync).');
   await loadScript();
-  if (!gmailClient || gmailClientId !== id) {
-    gmailClientId = id;
+  if (!gmailClient) {
     gmailClient = window.google!.accounts.oauth2.initTokenClient({
-      client_id: id,
+      client_id: getClientId(),
       scope: GMAIL_SCOPE,
       callback: (r) => {
         const p = gmailPending;

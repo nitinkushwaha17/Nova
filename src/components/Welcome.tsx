@@ -1,11 +1,9 @@
 import { Cloud, FileLock2, HardDrive, WifiOff } from 'lucide-react';
 import { useState } from 'react';
-import { connect, refreshConfigStatus } from '../sync/engine';
+import { connect } from '../sync/engine';
 import { isNative } from '../platform';
-import { connectedEmail, getClientId, setClientId, setLocalOnly, skipResume } from '../sync/google';
-import { Button, Input, toast } from './ui';
-
-const ENV_CLIENT = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+import { connectedEmail, setLocalOnly, skipResume } from '../sync/google';
+import { Button, toast } from './ui';
 
 function GoogleG() {
   return (
@@ -27,8 +25,6 @@ function GoogleG() {
  */
 export function Welcome({ mode, onDone }: { mode: 'welcome' | 'resume'; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [cid, setCid] = useState(getClientId());
-  const [hasClient, setHasClient] = useState(!!getClientId());
   const email = connectedEmail();
 
   const signIn = async () => {
@@ -95,32 +91,10 @@ export function Welcome({ mode, onDone }: { mode: 'welcome' | 'resume'; onDone: 
             <p className="rounded-xl border border-line bg-surface-2/50 p-3 text-xs text-muted">
               Google Drive sync in the mobile app needs native Google sign-in, which is coming next. For now the app works offline on this phone.
             </p>
-          ) : hasClient ? (
+          ) : (
             <Button variant="primary" className="w-full justify-center" loading={busy} icon={<GoogleG />} onClick={signIn}>
               {mode === 'resume' && email ? `Continue as ${email}` : 'Sign in with Google'}
             </Button>
-          ) : (
-            <form
-              className="space-y-2 rounded-xl border border-line bg-surface-2/50 p-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!cid.trim()) return;
-                setClientId(cid.trim());
-                refreshConfigStatus();
-                setHasClient(true);
-              }}
-            >
-              <p className="text-xs text-muted">
-                Google sign-in needs a one-time OAuth Client ID from your Google Cloud project (see <b>README → Google Drive setup</b>)
-                {ENV_CLIENT ? '' : ', or set VITE_GOOGLE_CLIENT_ID in .env.local'}.
-              </p>
-              <div className="flex gap-2">
-                <Input value={cid} onChange={(e) => setCid(e.target.value)} placeholder="xxxxxxxx.apps.googleusercontent.com" />
-                <Button type="submit" disabled={!cid.trim()}>
-                  Save
-                </Button>
-              </div>
-            </form>
           )}
           <Button variant="ghost" className="w-full justify-center" icon={<HardDrive className="size-4" />} onClick={skip}>
             {mode === 'resume' ? 'Use offline for now' : 'Continue without syncing'}

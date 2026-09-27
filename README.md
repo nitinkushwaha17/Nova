@@ -7,6 +7,7 @@ A private, local-first finance app for tracking your whole financial life in Ind
 | Area | What you get |
 | --- | --- |
 | **Import** | CSV / TSV / XLS / XLSX / ODS statements from any bank, with auto-detected columns and a manual mapping fallback. Password-protected .xlsx files (Excel 2007+ AES encryption) are decrypted in the browser. Passwords you save in **Settings → Statement passwords** are tried automatically (they sync to your Drive app folder); if none fit, you're prompted, with an option to remember the one you type. **SBI e-statement PDFs** (the monthly email statement, locked or unlocked) are parsed on-device: savings transactions go through the normal preview with running-balance reconciliation, and the listed fixed deposits sync to Assets, with auto-renewed FDs' current term inferred from SBI's maturity amount and matured FDs closed. **Gmail import** (read-only, on demand) searches your mail for statement emails with an editable query (SBI by default), opens their attachments through the same flow, and marks the ones already imported. Duplicate detection, transfer detection, and a per-account balance trail. Also imports backups from the old Bank-statement-analyser. |
+| **Missing-statement check** | Nova records how far each bank or card account's statements go. Once a month ends, the Dashboard flags accounts whose statement for that month hasn't been imported. **Sync from Gmail** fetches the statement emails received since then and imports whatever needs no decisions: SBI PDFs are matched to accounts by account number (their FDs sync too), and spreadsheets are matched when exactly one account's saved column layout fits. Saved passwords are tried automatically. Anything left (unknown password, no matching account) is listed with a link to Import. If Gmail access from an earlier click is still valid in the tab, the sync runs by itself when the Dashboard opens. Google doesn't allow Gmail access in the background without a server, so otherwise it takes one click. **Not now** hides the reminder until next month. |
 | **Transactions** | Search, filters, and single or bulk categorisation. Rules auto-categorise new imports and can be re-applied to history. |
 | **Collections & tags** | A collection groups spending for one thing (a trip, wedding or renovation) across categories, with dates, a budget, net cost after reimbursements, daily spend and a category/tag breakdown. "Find transactions" pulls unassigned spends from the collection's dates. Tags are free-form labels (e.g. `#reimbursable`, `#work`). A transaction can carry many tags but belongs to at most one collection. Both work alongside categories. Collections can nest (Europe trip → Paris → Louvre day): a parent's totals, transactions and Transactions-page filter include everything beneath it, and deleting a collection moves its sub-collections up a level. |
 | **Profiles** | Separate datasets for you, a spouse, parents or a business, each with its own accounts, transactions, assets and taxes. Switch from the sidebar. |
@@ -48,27 +49,17 @@ npm run android:apk  # debug APK → android/app/build/outputs/apk/debug/app-deb
 
 To install on your phone, enable USB debugging and use `android:run`, or copy the APK over and open it. To turn on SMS import, go to **Settings → SMS alerts** and allow the SMS permission. Android's dialog says "send and view SMS", but Nova only reads. Google Play restricts apps that read SMS, so this build is meant for sideloading. Google sign-in isn't available in the app yet (Google blocks its web sign-in inside apps; native sign-in is next), so the app currently works offline.
 
-## Google Drive setup (one time)
+## Google sign-in
+
+Nova ships with its own OAuth Web client ID (in `src/sync/google.ts`), so there is nothing to configure: click **Sign in with Google** on the welcome screen, or **Connect Google Drive** in Settings if you chose "Continue without syncing" earlier.
 
 Nova uses the Drive **appDataFolder** scope (`drive.appdata`). This is a hidden, app-private folder: Nova cannot see any of your other Drive files, and they cannot see Nova's.
 
-1. Open [Google Cloud Console](https://console.cloud.google.com/) and create a project, for example "Nova".
-2. Go to **APIs & Services → Library** and enable the **Google Drive API**.
-3. Go to **APIs & Services → OAuth consent screen**:
-   - Choose User type **External**, then fill in the app name and your email.
-   - Add the scopes `.../auth/drive.appdata` and `.../auth/userinfo.email`.
-   - Under **Test users**, add your own Google account. Keeping the app in "Testing" is fine for personal use.
-4. Go to **APIs & Services → Credentials → Create credentials → OAuth client ID**:
-   - Application type: **Web application**.
-   - Authorised JavaScript origins: `http://localhost:5173`. Also add `http://localhost:4173` if you use `npm run preview`, plus any domain you deploy to. No redirect URI is needed.
-5. Give Nova the client ID in one of two ways:
-   - Put it in `.env.local` as `VITE_GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com`, or
-   - Paste it in **Settings → Google OAuth Client ID** (stored only in this browser).
-6. Click **Sign in with Google** on Nova's welcome screen, or **Connect Google Drive** in Settings if you chose "Continue without syncing" earlier.
+The client ID isn't a secret: it tells Google which app is asking, and Google only accepts it from the **Authorised JavaScript origins** listed on the client. Its Google Cloud project must list every address Nova runs from (`http://localhost:5173` for `npm run dev`, `http://localhost:4173` for `npm run preview`, plus any domain you deploy to), have the Drive API (and, for Gmail import, the Gmail API) enabled, and, while the consent screen is in Testing mode, include your Google account as a test user.
 
-The Client ID isn't a secret: it tells Google which app is asking, which origins may use it, and what to show on the consent screen. Nova has no backend, so it has to come from your own Cloud project. Putting it in `.env.local` means the welcome screen goes straight to Google sign-in.
+**Using your own Google Cloud project instead.** Create a Web OAuth client with the origins above, enable the Drive and Gmail APIs, add the scopes `drive.appdata`, `userinfo.email` and `gmail.readonly` to the consent screen, and put the client ID in `.env.local` as `VITE_GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com`. It overrides the built-in one.
 
-**Optional: Gmail import.** To use **Import → Gmail**, also enable the **Gmail API** in the Library and add the scope `.../auth/gmail.readonly` to the consent screen. Nova asks for Gmail access only the first time you click **Find statements in Gmail**. It only reads the emails that match your search, downloads the attachments you click, and parses them in the browser. The Gmail token stays in memory and is never saved. Google marks `gmail.readonly` as a restricted scope, which is fine for an app in Testing mode used by its own test users. You may see an "unverified app" warning; choose **Continue**.
+**Gmail import.** Nova asks for Gmail access only the first time you click **Find statements in Gmail**. It only reads the emails that match your search, downloads the attachments you click, and parses them in the browser. The Gmail token stays in memory and is never saved. Google marks `gmail.readonly` as a restricted scope, which is fine for an app in Testing mode used by its own test users. You may see an "unverified app" warning; choose **Continue**.
 
 Google access tokens last about an hour and aren't kept after the tab closes. When you next open Nova, a "Welcome back" screen offers **Continue as you@gmail.com** (one click), or **Use offline for now**. Offline, Nova keeps working locally and the header shows a "Reconnect" button. Nothing is lost; pending changes upload after you sign in.
 

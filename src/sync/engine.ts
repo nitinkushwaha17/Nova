@@ -4,9 +4,9 @@ import { allFiles, getFile, getSyncMeta, putFile, setSyncMeta } from '../storage
 import { CORE_FILES, driveName, manifestName, PROFILES_FILE, SCHEMA_VERSION } from '../storage/files';
 import { drivePrefixFor, mergeProfiles, useProfiles, type Profile } from '../storage/profiles';
 import * as drive from './drive';
-import { getClientId, hasValidToken, isConnected, NeedsAuthError, setLocalOnly, signIn, signOut } from './google';
+import { hasValidToken, isConnected, NeedsAuthError, setLocalOnly, signIn, signOut } from './google';
 
-export type SyncStatus = 'unconfigured' | 'disconnected' | 'needs-auth' | 'idle' | 'syncing' | 'error' | 'offline';
+export type SyncStatus = 'disconnected' | 'needs-auth' | 'idle' | 'syncing' | 'error' | 'offline';
 
 export interface Conflict {
   name: string;
@@ -209,7 +209,7 @@ useProfiles.subscribe((s) => {
 });
 
 export async function syncNow(): Promise<void> {
-  if (!isConnected() || !getClientId()) return;
+  if (!isConnected()) return;
   if (running) {
     again = true;
     return running;
@@ -296,16 +296,10 @@ export async function initSync() {
   const meta = await getSyncMeta();
   set({ remoteFiles: meta.remoteFiles ?? {}, lastSyncAt: meta.lastSyncAt });
   await refreshPending();
-  if (!getClientId()) set({ status: 'unconfigured' });
-  else if (!isConnected()) set({ status: 'disconnected' });
+  if (!isConnected()) set({ status: 'disconnected' });
   else if (hasValidToken()) void syncNow();
   else set({ status: 'needs-auth' });
   window.addEventListener('online', () => {
     if (useSync.getState().status === 'offline') void syncNow();
   });
-}
-
-export function refreshConfigStatus() {
-  if (!getClientId()) set({ status: 'unconfigured' });
-  else if (!isConnected()) set({ status: 'disconnected' });
 }

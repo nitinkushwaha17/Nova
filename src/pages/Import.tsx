@@ -10,7 +10,7 @@ import { uid } from '../lib/format';
 import { PasswordError } from '../lib/parsers/officeCrypto';
 import { readPdfLines } from '../lib/parsers/pdf';
 import { accountRows, applyDepositSync, isSbiStatement, parseSbiStatement, planDepositSync, type SbiStatement } from '../lib/parsers/sbi';
-import { detectDelimiter, findHeaderRow, parseDelimited, readRows, rowsToTransactions, type Row } from '../lib/parsers/tabular';
+import { detectDelimiter, findHeaderRow, mappingFits, parseDelimited, readRows, rowsToTransactions, type Row } from '../lib/parsers/tabular';
 import { useStore, type ImportResult } from '../store';
 import type { ColumnMapping } from '../types';
 
@@ -36,15 +36,11 @@ const FIELDS: {
   { key: 'valueDate', label: 'Value date' },
 ];
 
-function mappingFits(m: ColumnMapping | undefined, headers: string[]) {
-  if (!m) return false;
-  return [m.date, m.description, m.debit, m.credit, m.amount].filter(Boolean).every((h) => headers.includes(h!));
-}
-
 export default function Import() {
   const [params] = useSearchParams();
   const accounts = useStore((s) => s.meta.accounts);
   const saveAccount = useStore((s) => s.saveAccount);
+  const noteStatement = useStore((s) => s.noteStatement);
   const importTransactions = useStore((s) => s.importTransactions);
   const assets = useStore((s) => s.portfolio.assets);
   const update = useStore((s) => s.update);
@@ -52,7 +48,7 @@ export default function Import() {
   const [sbi, setSbi] = useState<{ st: SbiStatement; accountIndex: number } | null>(null);
   const [accountId, setAccountId] = useState(params.get('account') ?? accounts[0]?.id ?? '');
   const [newAcc, setNewAcc] = useState(false);
-  const [source, setSource] = useState<'file' | 'paste' | 'gmail'>('file');
+  const [source, setSource] = useState<'file' | 'paste' | 'gmail'>(params.get('source') === 'gmail' ? 'gmail' : 'file');
   const settings = useStore((s) => s.settings);
   // `${messageId}:${filename}` of the statement opened from Gmail, marked imported once used
   const [gmailKey, setGmailKey] = useState<string | null>(null);
@@ -192,8 +188,10 @@ export default function Import() {
     if (!parsed || !account || !mapping) return;
     setImporting(true);
     try {
-      const res = await importTransactions(parsed.transactions.map((t) => ({ ...t, accountId: account.id })));
+      // Saved before importing so the import's statement date isn't overwritten by this stale copy
       saveAccount({ ...account, columnMapping: mapping, last4: account.last4 || sbi?.st.accounts[sbi.accountIndex]?.last4 });
+      const res = await importTransactions(parsed.transactions.map((t) => ({ ...t, accountId: account.id })));
+      if (sbi?.st.asOf) noteStatement(account.id, sbi.st.asOf);
       setResult(res);
       setPendingSms(res.smsUnmatched);
       setRows(null);
@@ -210,6 +208,9 @@ export default function Import() {
   const syncDeposits = () => {
     if (!fdPlan) return;
     update('portfolio', (d) => ({ assets: applyDepositSync(d.assets, fdPlan) }));
+    // A statement with no account activity still counts as received
+    const sa = sbi?.st.accounts[sbi.accountIndex];
+    if (account && sbi?.st.asOf && sa && !sa.transactions.length && sa.last4 === account.last4) noteStatement(account.id, sbi.st.asOf);
     markGmailImported();
     toast(`Fixed deposits synced: ${fdPlan.add.length} added, ${fdPlan.update.length} updated, ${fdPlan.close.length} closed`);
   };

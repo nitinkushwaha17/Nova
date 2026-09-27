@@ -92,7 +92,7 @@ function SyncChip() {
   }, []);
   const base = 'inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-surface-2 px-2.5 text-xs font-medium transition hover:border-accent/50';
 
-  if (status === 'unconfigured' || status === 'disconnected')
+  if (status === 'disconnected')
     return (
       <Link to="/settings" className={cx(base, 'text-muted')} title="Your data is only on this device. Connect Google Drive to back it up.">
         <CloudOff className="size-3.5" /> Local only{pending ? ` · ${pending} unsynced` : ''}

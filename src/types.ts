@@ -34,6 +34,8 @@ export interface Account {
   /** Manual balance override (used when statements don't carry balances) */
   manualBalance?: { date: ISODate; value: number };
   columnMapping?: ColumnMapping;
+  /** Last day covered by an imported statement (SMS entries don't count) */
+  statementThrough?: ISODate;
   archived?: boolean;
   createdAt: string;
 }
@@ -370,6 +372,8 @@ export interface SettingsDoc {
   gmailQuery?: string;
   /** Gmail attachments already imported, as `${messageId}:${filename}` */
   gmailImported?: string[];
+  /** Month (YYYY-MM) whose missing-statement reminder was dismissed */
+  statementReminderDismissed?: string;
 }
 
 export interface StatementPassword {
